@@ -9,9 +9,19 @@ export async function request(path, options = {}) {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.message || `Request failed with status ${res.status}`)
+    if (res.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+    }
+    throw new Error(body.error?.message || `Request failed with status ${res.status}`)
   }
 
   if (res.status === 204) return null
   return res.json()
+}
+
+export function qs(params = {}) {
+  const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  if (entries.length === 0) return ''
+  return '?' + new URLSearchParams(entries).toString()
 }

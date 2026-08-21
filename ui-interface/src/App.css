@@ -7,10 +7,16 @@
   width: 220px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
-  padding: 24px 16px;
+  padding: 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.brand {
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 4px 0 16px;
 }
 
 .sidebar a {
@@ -27,10 +33,37 @@
   color: var(--text-h);
 }
 
+.sidebar-spacer {
+  flex: 1;
+}
+
+.sidebar-user {
+  font-size: 13px;
+  color: var(--text);
+  padding: 0 12px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--text);
+  text-align: left;
+}
+
 .content {
   flex: 1;
-  padding: 24px;
+  padding: 24px 32px;
+  min-width: 0;
+  max-width: 1100px;
 }
+
+/* ---------- auth ---------- */
 
 .auth-page {
   min-height: 100svh;
@@ -40,7 +73,7 @@
 }
 
 .auth-form {
-  width: 320px;
+  width: 340px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -64,6 +97,8 @@
   color: var(--text-h);
 }
 
+/* ---------- generic controls ---------- */
+
 .btn {
   padding: 8px 14px;
   border-radius: 6px;
@@ -71,4 +106,361 @@
   background: var(--accent);
   color: #fff;
   cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-ghost {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input,
+select,
+textarea {
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 0;
+}
+
+.error-banner {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  margin: 12px 0;
+}
+
+.muted {
+  color: var(--text);
+  opacity: 0.7;
+  font-size: 13px;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+/* ---------- layout helpers ---------- */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-bg);
+}
+
+.inline-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.inline-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+/* ---------- stat cards ---------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.stat-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text);
+  opacity: 0.75;
+  margin-bottom: 6px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-running .stat-value {
+  color: var(--status-running);
+}
+.stat-claimed .stat-value {
+  color: var(--status-claimed);
+}
+.stat-completed .stat-value {
+  color: var(--success);
+}
+.stat-failed .stat-value {
+  color: var(--danger);
+}
+.stat-dead .stat-value {
+  color: var(--status-dead);
+}
+
+/* ---------- entity cards (projects) ---------- */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.entity-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entity-card-title {
+  font-weight: 600;
+  color: var(--text-h);
+  text-decoration: none;
+}
+
+.entity-card-title:hover {
+  color: var(--accent);
+}
+
+.entity-card-meta {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+/* ---------- tables ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+
+th {
+  color: var(--text);
+  opacity: 0.75;
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.wrap-cell {
+  max-width: 320px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* ---------- tabs ---------- */
+
+.tab-row {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.tab {
+  background: none;
+  border: none;
+  padding: 8px 14px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab-active {
+  color: var(--text-h);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---------- job submit / payload ---------- */
+
+.job-submit-form {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.payload-input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 13px;
+  resize: vertical;
+}
+
+.payload-view {
+  background: var(--accent-bg);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-text {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.detail-grid .muted {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+/* ---------- logs ---------- */
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 4px;
+}
+
+.log-line {
+  display: flex;
+  gap: 10px;
+  font-size: 12.5px;
+  align-items: baseline;
+}
+
+.log-level {
+  text-transform: uppercase;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-bg);
+}
+
+.log-error .log-level {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.log-warn .log-level {
+  background: rgba(217, 119, 6, 0.15);
+  color: #d97706;
+}
+
+/* ---------- status badges ---------- */
+
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.badge-scheduled {
+  background: var(--status-scheduled-bg);
+  color: var(--status-scheduled);
+}
+.badge-queued {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.badge-claimed {
+  background: var(--status-claimed-bg);
+  color: var(--status-claimed);
+}
+.badge-running {
+  background: var(--status-running-bg);
+  color: var(--status-running);
+}
+.badge-completed,
+.badge-succeeded {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.badge-failed {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.badge-dead {
+  background: var(--status-dead-bg);
+  color: var(--status-dead);
 }

@@ -11,6 +11,15 @@
   --success: #16a34a;
   --success-bg: rgba(22, 163, 74, 0.1);
 
+  --status-scheduled: #7c5cff;
+  --status-scheduled-bg: rgba(124, 92, 255, 0.12);
+  --status-claimed: #0f8b8d;
+  --status-claimed-bg: rgba(15, 139, 141, 0.12);
+  --status-running: #2563eb;
+  --status-running-bg: rgba(37, 99, 235, 0.12);
+  --status-dead: #881337;
+  --status-dead-bg: rgba(136, 19, 55, 0.12);
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
@@ -35,6 +44,15 @@
     --accent-border: rgba(192, 132, 252, 0.5);
     --danger-bg: rgba(220, 38, 38, 0.2);
     --success-bg: rgba(22, 163, 74, 0.2);
+
+    --status-scheduled: #a794ff;
+    --status-scheduled-bg: rgba(167, 148, 255, 0.16);
+    --status-claimed: #2dd4d6;
+    --status-claimed-bg: rgba(45, 212, 214, 0.16);
+    --status-running: #60a5fa;
+    --status-running-bg: rgba(96, 165, 250, 0.16);
+    --status-dead: #fb7185;
+    --status-dead-bg: rgba(251, 113, 133, 0.18);
   }
 }
 
