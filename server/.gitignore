@@ -1,0 +1,25 @@
+# Binaries
+/bin/
+/api
+/worker
+*.exe
+*.test
+*.out
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Go
+*.dll
+*.so
+*.dylib
+vendor/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
