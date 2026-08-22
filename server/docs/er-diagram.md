@@ -50,6 +50,7 @@ erDiagram
         int max_delay_ms
         int max_attempts
         numeric multiplier
+        timestamptz created_at
     }
     QUEUES {
         uuid id PK
@@ -59,6 +60,7 @@ erDiagram
         int priority
         int concurrency_limit
         bool is_paused
+        timestamptz created_at
     }
     SCHEDULED_JOBS {
         uuid id PK
@@ -67,6 +69,7 @@ erDiagram
         jsonb payload_template
         timestamptz next_run_at
         bool is_active
+        timestamptz created_at
     }
     JOBS {
         uuid id PK
@@ -85,6 +88,8 @@ erDiagram
         text locked_by
         timestamptz locked_at
         text last_error
+        timestamptz created_at
+        timestamptz updated_at
     }
     JOB_EXECUTIONS {
         uuid id PK
@@ -151,7 +156,19 @@ Full DDL: [`migrations/000001_init_schema.up.sql`](../migrations/000001_init_sch
 - **Cascades** run down the containment tree —
   `organizations → projects → queues → jobs → job_executions → job_logs` — an
   orphaned execution log with no parent job is meaningless.
-  `dead_letter_queue` cascades with its job too. Trade-off: deleting a
-  project destroys its audit history; noted in
-  [design-decisions.md](design-decisions.md) as the first thing to swap for a
-  `deleted_at` soft-delete in a compliance-sensitive deployment.
+  `dead_letter_queue` and `worker_heartbeats` cascade with their parent
+  (`jobs`, `workers`) too. Trade-off: deleting a project destroys its audit
+  history; noted in [design-decisions.md](design-decisions.md) as the first
+  thing to swap for a `deleted_at` soft-delete in a compliance-sensitive
+  deployment.
+- **Not every FK cascades** — three are deliberately `RESTRICT` or
+  `SET NULL` instead:
+  - `queues.retry_policy_id → retry_policies` is `RESTRICT` — a policy can't
+    be deleted while a queue still references it, so an in-use retry
+    strategy never silently disappears out from under a queue.
+  - `projects.owner_id → users` is `RESTRICT` — a user can't be deleted
+    while they still own a project.
+  - `jobs.scheduled_job_id → scheduled_jobs` and `jobs.retry_policy_id →
+    retry_policies` (the per-job override) are both `SET NULL` — a job
+    that already exists keeps running even if the cron definition or
+    policy override that created it is later removed.

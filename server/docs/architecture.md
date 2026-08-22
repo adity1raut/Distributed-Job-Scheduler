@@ -32,7 +32,8 @@ flowchart LR
 
 - **`cmd/api`** — stateless REST server: auth, project/queue/job CRUD, dashboard
   reads. Scales horizontally behind a load balancer; any replica can serve any
-  request.
+  request. CORS is locked to `CORS_ALLOWED_ORIGINS` (the dashboard's own
+  origin by default) rather than left open.
 - **scheduler** — a goroutine inside every `cmd/api` replica. Ticks every
   `SCHEDULER_TICK_SEC` seconds, but calls `pg_try_advisory_lock` first — only
   one replica's tick does work per cycle, so a cron job never fires twice just
