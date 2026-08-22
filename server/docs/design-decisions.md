@@ -73,10 +73,6 @@ thing to change, not built speculatively.
 
 ## Architecture
 
-```
-React Dashboard  →  Go API (× N)  →  PostgreSQL
-                          │               ↑
-                          │      Go Worker(s) (× N)
-                          ↓
-                        Redis (rate limiting)
-```
+![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; a fleet of workers polls PostgreSQL to claim jobs with SELECT FOR UPDATE SKIP LOCKED and sends heartbeats.](images/architecture.png)
+
+Full component breakdown and the job lifecycle state machine: [architecture.md](architecture.md).

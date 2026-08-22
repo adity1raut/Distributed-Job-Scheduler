@@ -37,16 +37,9 @@ Two independent Go binaries sharing a common `internal/` package:
 
 This split mirrors a real deployment where the API and worker fleet scale independently.
 
-```
-React Dashboard  →  Go API  →  PostgreSQL
-                                    ↑
-                Go Worker(s)  ──────┘
-                     ↓
-                   Redis (rate limiting)
-```
+![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; a fleet of workers polls PostgreSQL to claim jobs with SELECT FOR UPDATE SKIP LOCKED and sends heartbeats.](server/docs/images/architecture.png)
 
-A fuller diagram (with the scheduler's advisory-lock leader election drawn
-in) and the job lifecycle state machine live in
+The job lifecycle state machine lives in
 [`server/docs/architecture.md`](server/docs/architecture.md).
 
 ## Dashboard
@@ -80,9 +73,11 @@ server/
 │   └── config.go
 ├── migrations/              # Versioned SQL schema (golang-migrate)
 ├── docs/
-│   ├── architecture.md      # Component diagram + job lifecycle state machine (Mermaid)
-│   ├── er-diagram.md        # Full ER diagram + index/cascade rationale (Mermaid)
+│   ├── architecture.md      # Component diagram + job lifecycle state machine
+│   ├── er-diagram.md        # Full ER diagram + index/cascade rationale
 │   ├── schema.dbml          # Same schema in DBML — paste into dbdiagram.io
+│   ├── schema.eraser        # Same schema in Eraser DSL — paste into eraser.io
+│   ├── images/              # architecture.png, job-scheduling.png, er-diagram.png (Eraser exports)
 │   ├── api.md               # REST API reference — every endpoint, request/response shapes
 │   └── design-decisions.md  # Trade-offs behind the schema and reliability mechanisms
 ├── go.mod
@@ -232,6 +227,7 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 | [`server/docs/architecture.md`](server/docs/architecture.md) | Component diagram, job lifecycle state machine |
 | [`server/docs/er-diagram.md`](server/docs/er-diagram.md) | Full ER diagram, keys, indexes, cascade behavior |
 | [`server/docs/schema.dbml`](server/docs/schema.dbml) | Same schema in DBML — paste into [dbdiagram.io](https://dbdiagram.io) for an interactive diagram |
+| [`server/docs/schema.eraser`](server/docs/schema.eraser) | Same schema in Eraser DSL — paste into [eraser.io](https://eraser.io) |
 | [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint — request/response shapes, error codes, pagination |
 | [`server/docs/design-decisions.md`](server/docs/design-decisions.md) | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
 | [`ui-interface/README.md`](ui-interface/README.md) | Frontend feature list, structure, env vars |

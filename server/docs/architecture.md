@@ -3,30 +3,7 @@
 Two independent Go binaries, coordinating entirely through PostgreSQL —
 no message broker, no external queue.
 
-```mermaid
-flowchart LR
-    UI["React Dashboard"]
-
-    subgraph api["API (N replicas)"]
-        API["cmd/api<br/>REST + JWT auth"]
-        SCHED["scheduler goroutine<br/>cron dispatch + reaper"]
-    end
-
-    subgraph workers["Workers (N replicas)"]
-        W["cmd/worker<br/>poll · claim · execute"]
-    end
-
-    PG[("PostgreSQL")]
-    R[("Redis")]
-
-    UI -->|"HTTPS + JWT"| API
-    UI -.->|"poll every 5s"| API
-    API <-->|"reads / writes"| PG
-    API -->|"check / incr rate limit"| R
-    SCHED -->|"pg_try_advisory_lock<br/>dispatch due scheduled_jobs"| PG
-    W -->|"poll & claim<br/>SELECT ... FOR UPDATE SKIP LOCKED"| PG
-    W -->|"heartbeat every 10s"| PG
-```
+![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; a fleet of workers polls PostgreSQL to claim jobs with SELECT FOR UPDATE SKIP LOCKED and sends heartbeats.](images/architecture.png)
 
 ## Components
 
@@ -51,20 +28,7 @@ flowchart LR
 
 ## Job lifecycle
 
-```mermaid
-stateDiagram-v2
-    [*] --> Scheduled: delayed / scheduled job
-    [*] --> Queued: immediate / batch job
-    Scheduled --> Queued: run_at reached
-    Queued --> Claimed: SELECT ... FOR UPDATE SKIP LOCKED
-    Claimed --> Running: worker starts execution
-    Running --> Completed: success
-    Running --> Queued: attempts < max_attempts (backoff delay)
-    Running --> Dead: attempts >= max_attempts
-    Claimed --> Queued: no heartbeat within STALE_JOB_SEC (reaped)
-    Completed --> [*]
-    Dead --> [*]: dead_letter_queue entry written
-```
+![Job lifecycle state diagram: a job starts at Scheduled or Queued, moves to Claimed via an atomic SKIP LOCKED select, then Running; from Running it either completes, retries back to Queued with a backoff delay, or moves to Dead once retries are exhausted; a Claimed job with no heartbeat is reaped back to Queued.](images/job-scheduling.png)
 
 See [er-diagram.md](er-diagram.md) for the schema behind these states and
 [api.md](api.md) for the REST surface that drives them.
