@@ -82,6 +82,7 @@ server/
 ├── docs/
 │   ├── architecture.md      # Component diagram + job lifecycle state machine (Mermaid)
 │   ├── er-diagram.md        # Full ER diagram + index/cascade rationale (Mermaid)
+│   ├── schema.dbml          # Same schema in DBML — paste into dbdiagram.io
 │   ├── api.md               # REST API reference — every endpoint, request/response shapes
 │   └── design-decisions.md  # Trade-offs behind the schema and reliability mechanisms
 ├── go.mod
@@ -230,6 +231,7 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 |---|---|
 | [`server/docs/architecture.md`](server/docs/architecture.md) | Component diagram, job lifecycle state machine |
 | [`server/docs/er-diagram.md`](server/docs/er-diagram.md) | Full ER diagram, keys, indexes, cascade behavior |
+| [`server/docs/schema.dbml`](server/docs/schema.dbml) | Same schema in DBML — paste into [dbdiagram.io](https://dbdiagram.io) for an interactive diagram |
 | [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint — request/response shapes, error codes, pagination |
 | [`server/docs/design-decisions.md`](server/docs/design-decisions.md) | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
 | [`ui-interface/README.md`](ui-interface/README.md) | Frontend feature list, structure, env vars |
