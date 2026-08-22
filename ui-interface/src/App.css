@@ -964,13 +964,21 @@ th {
 }
 
 .Toastify__toast {
+  background: var(--surface) !important;
+  color: var(--text-h) !important;
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   margin-bottom: 10px;
   font-size: 13.5px;
+  font-family: var(--sans);
   align-items: flex-start;
+  box-shadow: var(--shadow-md);
+}
+
+.Toastify__toast-body {
+  color: inherit !important;
 }
 
 .Toastify__toast--success {
