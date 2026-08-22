@@ -55,36 +55,12 @@ for the full feature list and frontend structure.
 ## Project Structure
 
 ```
-server/
-├── cmd/
-│   ├── api/                # API server entry point
-│   └── worker/             # Worker service entry point
-├── internal/
-│   ├── apperr/              # Structured error type ({code, message, request_id})
-│   ├── authtoken/            # JWT issue/verify, shared by auth service + auth middleware
-│   ├── db/                   # Postgres connection pool (pgxpool)
-│   ├── httpx/                  # JSON response helpers, keyset pagination
-│   ├── models/                  # Domain types for all 12 entities
-│   ├── repository/               # DB queries — atomic claiming lives in job_repository.go
-│   ├── service/                    # Business logic, incl. the worker's execution engine
-│   ├── handler/                     # HTTP handlers + chi router wiring
-│   ├── middleware/                   # Auth (JWT), rate limiting (Redis), logging, request ID
-│   ├── scheduler/                     # Cron dispatch + advisory-lock leader election + reaper
-│   └── config.go
-├── migrations/              # Versioned SQL schema (golang-migrate)
-├── docs/
-│   ├── architecture.md      # Component diagram + job lifecycle state machine
-│   ├── er-diagram.md        # Full ER diagram + index/cascade rationale
-│   ├── schema.dbml          # Same schema in DBML — paste into dbdiagram.io
-│   ├── schema.eraser        # Same schema in Eraser DSL — paste into eraser.io
-│   ├── images/              # architecture.png, job-scheduling.png, er-diagram.png (Eraser exports)
-│   ├── api.md               # REST API reference — every endpoint, request/response shapes
-│   └── design-decisions.md  # Trade-offs behind the schema and reliability mechanisms
-├── go.mod
-└── .gitignore
-
 ui-interface/                # React dashboard (Vite) — see ui-interface/README.md
 ```
+
+Backend structure and docs live under `server/` — see the
+[Documentation](#documentation) table below for the full breakdown
+(architecture, ER diagram, API reference, design decisions).
 
 ## Prerequisites
 
@@ -132,27 +108,27 @@ The frontend has its own env file — `ui-interface/.env`
 (`cp ui-interface/.env.example ui-interface/.env`), one variable:
 `VITE_API_URL`, defaulting to `http://localhost:8080`.
 
-### 3. Create the database
-
-```bash
-createdb jobscheduler
-```
-
-### 4. Run migrations
-
-From `server/`:
-
-```bash
-migrate -path migrations -database "$DATABASE_URL" up
-```
-
-### 5. Start Redis and Postgres
+### 3. Start Redis and Postgres
 
 Make sure both are running locally, or via Docker:
 
 ```bash
 docker run -d --name js-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:15
 docker run -d --name js-redis -p 6379:6379 redis:7
+```
+
+### 4. Create the database
+
+```bash
+docker exec js-postgres createdb -U postgres jobscheduler
+```
+
+### 5. Run migrations
+
+From `server/`:
+
+```bash
+migrate -path migrations -database "$DATABASE_URL" up
 ```
 
 ### 6. Run the API server
@@ -226,8 +202,6 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 |---|---|
 | [`server/docs/architecture.md`](server/docs/architecture.md) | Component diagram, job lifecycle state machine |
 | [`server/docs/er-diagram.md`](server/docs/er-diagram.md) | Full ER diagram, keys, indexes, cascade behavior |
-| [`server/docs/schema.dbml`](server/docs/schema.dbml) | Same schema in DBML — paste into [dbdiagram.io](https://dbdiagram.io) for an interactive diagram |
-| [`server/docs/schema.eraser`](server/docs/schema.eraser) | Same schema in Eraser DSL — paste into [eraser.io](https://eraser.io) |
 | [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint — request/response shapes, error codes, pagination |
 | [`server/docs/design-decisions.md`](server/docs/design-decisions.md) | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
 | [`ui-interface/README.md`](ui-interface/README.md) | Frontend feature list, structure, env vars |
