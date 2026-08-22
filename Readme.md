@@ -12,7 +12,6 @@ A production-inspired distributed job scheduling platform for reliably executing
 - [Testing](#testing)
 - [Rolling Back Migrations](#rolling-back-migrations)
 - [Documentation](#documentation)
-- [Deliverables](#deliverables)
 
 ## Tech Stack
 
@@ -44,13 +43,8 @@ The job lifecycle state machine lives in
 
 ## Dashboard
 
-The `ui-interface/` React app is a full dashboard against the API above, not
-a mockup: live overview stats, project/queue management, a filterable job
-explorer with per-attempt execution logs, cron schedule management, a
-dead-letter queue view with one-click replay, and worker fleet status —
-everything polls the API every few seconds. Every mutation reports success
-or failure via toast. See [`ui-interface/README.md`](ui-interface/README.md)
-for the full feature list and frontend structure.
+See [`ui-interface/README.md`](ui-interface/README.md) for the frontend's
+feature list, structure, and setup instructions.
 
 ## Project Structure
 
@@ -81,32 +75,10 @@ go mod tidy
 
 ### 2. Configure environment
 
-Create a `.env` file (or export these directly):
-
 ```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/jobscheduler?sslmode=disable
-REDIS_ADDR=localhost:6379
-JWT_SECRET=replace-with-a-long-random-secret
-JWT_EXPIRY_HOURS=24
-API_PORT=8080
-WORKER_POLL_MS=500
-WORKER_CONCURRENCY=10
-HEARTBEAT_SEC=10
-STALE_JOB_SEC=60
-SCHEDULER_TICK_SEC=5
-RATE_LIMIT_PER_MIN=120
-CORS_ALLOWED_ORIGINS=http://localhost:5173
+cp .env.example .env                                   # from server/
+cp ../ui-interface/.env.example ../ui-interface/.env    # frontend
 ```
-
-All of the above have sane defaults in `internal/config.go` — a `.env` file is
-only needed to override them (e.g. a non-default DB URL). `.env` loads
-automatically via `godotenv`; copy `server/.env.example` to get started.
-`CORS_ALLOWED_ORIGINS` is comma-separated if the dashboard is served from
-more than one origin.
-
-The frontend has its own env file — `ui-interface/.env`
-(`cp ui-interface/.env.example ui-interface/.env`), one variable:
-`VITE_API_URL`, defaulting to `http://localhost:8080`.
 
 ### 3. Start Redis and Postgres
 
@@ -163,21 +135,6 @@ From `server/`:
 go test ./...
 ```
 
-Unit tests (retry backoff math) run with no setup. The integration tests —
-concurrency-correctness, queue pause/concurrency-limit enforcement,
-stale-claim reaping, idempotency, and the full retry → dead-letter pipeline
-— need a real Postgres, since `SKIP LOCKED` and row-level locking are
-database guarantees no mock can prove. They all `t.Skip` automatically when
-`TEST_DATABASE_URL` isn't set, so `go test ./...` stays usable with no setup;
-point it at a throwaway instance to run them:
-
-```bash
-docker run -d --name js-test-postgres -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:15
-createdb -h localhost -p 55432 -U postgres jobscheduler
-migrate -path migrations -database "postgres://postgres:postgres@localhost:55432/jobscheduler?sslmode=disable" up
-TEST_DATABASE_URL="postgres://postgres:postgres@localhost:55432/jobscheduler?sslmode=disable" go test ./... -v
-```
-
 | Test | Proves |
 |---|---|
 | `TestClaimNext_NoDuplicateClaims` | 50 workers racing for 200 jobs never double-claim |
@@ -205,14 +162,3 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 | [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint — request/response shapes, error codes, pagination |
 | [`server/docs/design-decisions.md`](server/docs/design-decisions.md) | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
 | [`ui-interface/README.md`](ui-interface/README.md) | Frontend feature list, structure, env vars |
-
-## Deliverables
-
-| Required by the brief | Where |
-|---|---|
-| Source code with setup instructions | This file — [Setup](#setup) |
-| Architecture diagram | [`server/docs/architecture.md`](server/docs/architecture.md) |
-| ER diagram | [`server/docs/er-diagram.md`](server/docs/er-diagram.md) |
-| API documentation | [`server/docs/api.md`](server/docs/api.md) |
-| Design decisions document | [`server/docs/design-decisions.md`](server/docs/design-decisions.md) |
-| Automated tests | [Testing](#testing) — unit + integration, see table above |
