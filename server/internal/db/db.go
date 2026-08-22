@@ -1,15 +1,29 @@
+// Package db owns the single Postgres connection pool shared by every
+// repository in both the API and worker binaries.
 package db
 
-// Pool wraps the Postgres connection pool.
-// TODO: replace with *pgxpool.Pool once github.com/jackc/pgx/v5 is added (go get + go mod tidy).
-type Pool struct{}
+import (
+	"context"
+	"time"
 
-// New opens a Postgres connection pool using the given DSN.
-func New(dsn string) (*Pool, error) {
-	// TODO: return pgxpool.New(context.Background(), dsn)
-	return &Pool{}, nil
-}
+	"github.com/jackc/pgx/v5/pgxpool"
+)
 
-func (p *Pool) Close() {
-	// TODO: p.pool.Close()
+func New(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MaxConnLifetime = time.Hour
+	cfg.HealthCheckPeriod = 30 * time.Second
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return pool, nil
 }

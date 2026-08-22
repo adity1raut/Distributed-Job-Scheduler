@@ -1,6 +1,12 @@
+DROP TABLE IF EXISTS dead_letter_queue;
+DROP TABLE IF EXISTS worker_heartbeats;
+DROP TABLE IF EXISTS job_logs;
+DROP TABLE IF EXISTS job_executions;
 DROP TABLE IF EXISTS workers;
 DROP TABLE IF EXISTS jobs;
-DROP TYPE IF EXISTS job_status;
+DROP TABLE IF EXISTS scheduled_jobs;
 DROP TABLE IF EXISTS queues;
+DROP TABLE IF EXISTS retry_policies;
 DROP TABLE IF EXISTS projects;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS organizations;

@@ -1,6 +1,6 @@
-import { CalendarClock, CalendarPlus, Pause, Play } from 'lucide-react'
+import { CalendarClock, CalendarPlus } from 'lucide-react'
 import { useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'react-toastify'
 import {
   createScheduledJob,
   listScheduledJobs,
@@ -99,7 +99,6 @@ export default function ScheduledJobsPanel({ queueId }) {
                 </td>
                 <td>
                   <button className="btn-ghost" onClick={() => toggle(sj)}>
-                    {sj.is_active ? <Pause size={13} /> : <Play size={13} />}
                     {sj.is_active ? 'Pause' : 'Resume'}
                   </button>
                 </td>

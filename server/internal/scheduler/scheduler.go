@@ -1,18 +1,135 @@
+// Package scheduler dispatches due cron/recurring jobs onto their queues
+// and reaps stale claims. It runs inside every API replica, but a Postgres
+// advisory lock ensures only one replica's tick does work per cycle — see
+// docs/design-decisions.md for why this avoids a dedicated lock service.
 package scheduler
 
-// Scheduler dispatches cron-based and delayed jobs onto their queues.
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"github.com/adity1raut/job-scheduler/internal/repository"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/robfig/cron/v3"
+)
+
+// advisoryLockKey is an arbitrary fixed int64 — any value works as long as
+// every replica uses the same one, since pg_try_advisory_lock keys are
+// process-agnostic within the database.
+const advisoryLockKey = 72176321
+
 type Scheduler struct {
-	// TODO: repository.JobRepository, robfig/cron instance
+	pool          *pgxpool.Pool
+	scheduledJobs *repository.ScheduledJobRepository
+	jobs          *repository.JobRepository
+	tickInterval  time.Duration
+	staleSec      int
+
+	stop chan struct{}
+	done chan struct{}
 }
 
-func New() *Scheduler {
-	return &Scheduler{}
+func New(pool *pgxpool.Pool, scheduledJobs *repository.ScheduledJobRepository, jobs *repository.JobRepository, tickInterval time.Duration, staleSec int) *Scheduler {
+	return &Scheduler{
+		pool:          pool,
+		scheduledJobs: scheduledJobs,
+		jobs:          jobs,
+		tickInterval:  tickInterval,
+		staleSec:      staleSec,
+		stop:          make(chan struct{}),
+		done:          make(chan struct{}),
+	}
 }
 
-func (s *Scheduler) Start() {
-	// TODO: start cron ticker, enqueue due jobs
+func (s *Scheduler) Start(ctx context.Context) {
+	go s.loop(ctx)
 }
 
 func (s *Scheduler) Stop() {
-	// TODO: graceful shutdown
+	close(s.stop)
+	<-s.done
+}
+
+func (s *Scheduler) loop(ctx context.Context) {
+	defer close(s.done)
+	ticker := time.NewTicker(s.tickInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.tick(ctx)
+		}
+	}
+}
+
+func (s *Scheduler) tick(ctx context.Context) {
+	var acquired bool
+	if err := s.pool.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, advisoryLockKey).Scan(&acquired); err != nil {
+		slog.Error("advisory lock check failed", "error", err)
+		return
+	}
+	if !acquired {
+		// Another API replica is ticking this cycle.
+		return
+	}
+	defer func() {
+		if _, err := s.pool.Exec(ctx, `SELECT pg_advisory_unlock($1)`, advisoryLockKey); err != nil {
+			slog.Error("advisory unlock failed", "error", err)
+		}
+	}()
+
+	s.dispatchDue(ctx)
+
+	reaped, err := s.jobs.ReapStale(ctx, s.staleSec)
+	if err != nil {
+		slog.Error("reap stale jobs failed", "error", err)
+	} else if reaped > 0 {
+		slog.Info("reaped stale jobs", "count", reaped)
+	}
+}
+
+func (s *Scheduler) dispatchDue(ctx context.Context) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		slog.Error("scheduler tx begin failed", "error", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	due, err := s.scheduledJobs.DueForDispatch(ctx, tx, 50)
+	if err != nil {
+		slog.Error("fetch due scheduled jobs failed", "error", err)
+		return
+	}
+
+	for _, sj := range due {
+		schedule, err := cron.ParseStandard(sj.CronExpression)
+		if err != nil {
+			slog.Error("invalid cron expression, skipping", "scheduled_job_id", sj.ID, "error", err)
+			continue
+		}
+
+		_, err = tx.Exec(ctx, `
+			INSERT INTO jobs (queue_id, scheduled_job_id, type, payload, run_at)
+			VALUES ($1, $2, 'recurring', $3, now())`,
+			sj.QueueID, sj.ID, sj.PayloadTemplate)
+		if err != nil {
+			slog.Error("dispatch scheduled job failed", "scheduled_job_id", sj.ID, "error", err)
+			continue
+		}
+
+		if err := s.scheduledJobs.SetNextRunAt(ctx, tx, sj.ID, schedule.Next(time.Now())); err != nil {
+			slog.Error("advance next_run_at failed", "scheduled_job_id", sj.ID, "error", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		slog.Error("scheduler tx commit failed", "error", err)
+	}
 }

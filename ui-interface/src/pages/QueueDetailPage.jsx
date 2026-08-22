@@ -1,4 +1,3 @@
-import { ListChecks, Send, Settings2, SkullIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getProject } from '../api/projects'
@@ -11,12 +10,7 @@ import QueueConfigPanel from '../components/queue/QueueConfigPanel'
 import ScheduledJobsPanel from '../components/queue/ScheduledJobsPanel'
 import { usePolling } from '../hooks/usePolling'
 
-const TABS = [
-  { key: 'Jobs', icon: Send },
-  { key: 'Scheduled', icon: ListChecks },
-  { key: 'Dead letters', icon: SkullIcon },
-  { key: 'Configuration', icon: Settings2 },
-]
+const TABS = ['Jobs', 'Scheduled', 'Dead letters', 'Configuration']
 
 export default function QueueDetailPage() {
   const { queueId } = useParams()
@@ -49,9 +43,8 @@ export default function QueueDetailPage() {
       </div>
 
       <div className="tab-row">
-        {TABS.map(({ key, icon: Icon }) => (
+        {TABS.map((key) => (
           <button key={key} className={`tab${tab === key ? ' tab-active' : ''}`} onClick={() => setTab(key)}>
-            <Icon size={14} />
             {key}
           </button>
         ))}

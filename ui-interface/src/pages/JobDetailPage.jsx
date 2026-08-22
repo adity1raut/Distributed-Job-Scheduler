@@ -1,7 +1,7 @@
-import { ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { toast } from 'react-toastify'
 import { executionLogs, getJob, retryJob } from '../api/jobs'
 import { getProject } from '../api/projects'
 import { getQueue } from '../api/queues'
@@ -151,7 +151,6 @@ export default function JobDetailPage() {
                   <td className="mono num">{ex.duration_ms != null ? `${ex.duration_ms}ms` : '—'}</td>
                   <td>
                     <button className="btn-ghost" onClick={() => toggleLogs(ex.id)}>
-                      {openLogs === ex.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                       {openLogs === ex.id ? 'Hide logs' : 'View logs'}
                     </button>
                   </td>

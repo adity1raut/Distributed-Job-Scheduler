@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Inbox, RefreshCw } from 'lucide-react'
+import { Inbox } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { listJobs } from '../../api/jobs'
 import { usePolling } from '../../hooks/usePolling'
@@ -44,7 +44,6 @@ export default function JobsTable({ queueId, refreshKey }) {
           ))}
         </select>
         <button className="btn-ghost" onClick={reload}>
-          <RefreshCw size={13} />
           Refresh
         </button>
         {data && <span className="table-count">{data.items.length} shown</span>}
@@ -103,7 +102,6 @@ export default function JobsTable({ queueId, refreshKey }) {
           disabled={cursorStack.length === 1}
           onClick={() => setCursorStack((s) => s.slice(0, -1))}
         >
-          <ChevronLeft size={13} />
           Previous
         </button>
         <button
@@ -112,7 +110,6 @@ export default function JobsTable({ queueId, refreshKey }) {
           onClick={() => setCursorStack((s) => [...s, data.next_cursor])}
         >
           Next
-          <ChevronRight size={13} />
         </button>
       </div>
     </div>

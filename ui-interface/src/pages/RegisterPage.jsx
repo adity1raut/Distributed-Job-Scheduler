@@ -1,6 +1,7 @@
 import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import Wordmark from '../components/Wordmark'
 import { useAuth } from '../context/AuthContext'
 
 export default function RegisterPage() {
@@ -30,7 +31,7 @@ export default function RegisterPage() {
     <div className="auth-page">
       <form className="auth-form" onSubmit={handleSubmit}>
         <div className="auth-brand">
-          <span className="brand-mark">JS</span>
+          <Wordmark />
         </div>
         <h2>Create account</h2>
         <p className="page-sub auth-sub">Registers a new organization — you'll be its owner.</p>

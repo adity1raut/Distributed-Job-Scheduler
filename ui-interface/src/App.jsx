@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
@@ -16,19 +17,15 @@ import './App.css'
 export default function App() {
   return (
     <AuthProvider>
-      <Toaster
+      <ToastContainer
         position="top-right"
-        toastOptions={{
-          duration: 3500,
-          style: {
-            background: 'var(--bg)',
-            color: 'var(--text-h)',
-            border: '1px solid var(--border)',
-            fontSize: '13.5px',
-          },
-          success: { iconTheme: { primary: 'var(--success)', secondary: 'var(--bg)' } },
-          error: { iconTheme: { primary: 'var(--danger)', secondary: 'var(--bg)' } },
-        }}
+        autoClose={3500}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+        icon={false}
+        toastClassName="app-toast"
       />
       <Routes>
         <Route path="/login" element={<LoginPage />} />

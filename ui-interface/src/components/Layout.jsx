@@ -1,29 +1,50 @@
-import { LayoutGrid, LogOut, Server, Timer } from 'lucide-react'
+import { LogOut, Menu, X } from 'lucide-react'
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import Wordmark from './Wordmark'
 
 const NAV = [
-  { to: '/', label: 'Overview', icon: LayoutGrid, end: true },
-  { to: '/projects', label: 'Projects', icon: Timer, end: false },
-  { to: '/workers', label: 'Workers', icon: Server, end: false },
+  { to: '/', label: 'Overview', end: true },
+  { to: '/projects', label: 'Projects', end: false },
+  { to: '/workers', label: 'Workers', end: false },
 ]
 
 export default function Layout() {
   const { user, logout } = useAuth()
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const initial = user?.email?.[0]?.toUpperCase() ?? '?'
 
   return (
     <div className="app-shell">
-      <nav className="sidebar">
+      <header className="mobile-topbar">
+        <button className="icon-btn" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
+          <Menu size={20} />
+        </button>
         <div className="brand">
-          <span className="brand-mark">JS</span>
-          <span className="brand-name">Job Scheduler</span>
+          <Wordmark />
+        </div>
+      </header>
+
+      {drawerOpen && <div className="sidebar-backdrop" onClick={() => setDrawerOpen(false)} />}
+
+      <nav className={`sidebar${drawerOpen ? ' sidebar-open' : ''}`}>
+        <div className="brand sidebar-brand">
+          <Wordmark />
+          <button className="icon-btn sidebar-close" onClick={() => setDrawerOpen(false)} aria-label="Close menu">
+            <X size={18} />
+          </button>
         </div>
 
         <div className="nav-links">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>
-              <Icon size={16} strokeWidth={2} />
+          {NAV.map(({ to, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              onClick={() => setDrawerOpen(false)}
+              className={({ isActive }) => (isActive ? 'active' : '')}
+            >
               {label}
             </NavLink>
           ))}

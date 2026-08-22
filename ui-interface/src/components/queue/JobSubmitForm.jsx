@@ -1,6 +1,6 @@
 import { Send } from 'lucide-react'
 import { useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'react-toastify'
 import { submitJob } from '../../api/jobs'
 
 const TYPES = ['immediate', 'delayed', 'scheduled', 'batch']

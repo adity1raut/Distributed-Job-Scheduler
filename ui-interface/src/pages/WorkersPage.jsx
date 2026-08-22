@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, HeartPulse, Server } from 'lucide-react'
+import { Server } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { listWorkers, workerHeartbeats } from '../api/workers'
 import EmptyState from '../components/EmptyState'
@@ -64,7 +64,6 @@ export default function WorkersPage() {
                   <td className="mono num">{w.active_job_count ?? 0}</td>
                   <td>
                     <button className="btn-ghost" onClick={() => toggle(w.id)}>
-                      {expanded === w.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                       History
                     </button>
                   </td>
@@ -76,7 +75,6 @@ export default function WorkersPage() {
                         {heartbeats.length === 0 && <p className="muted">No heartbeat history.</p>}
                         {heartbeats.map((hb) => (
                           <div key={hb.id} className="log-line">
-                            <HeartPulse size={12} className="log-hb-icon" />
                             <span className="mono">
                               <Timestamp value={hb.reported_at} />
                             </span>

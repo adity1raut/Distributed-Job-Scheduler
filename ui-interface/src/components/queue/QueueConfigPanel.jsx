@@ -1,19 +1,20 @@
-import { Activity, CheckCircle2, Clock3, Inbox, Pause, Play, Save, Skull, XCircle } from 'lucide-react'
+import { Save } from 'lucide-react'
 import { useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'react-toastify'
 import { pauseQueue, queueStats, resumeQueue, updateQueueConfig } from '../../api/queues'
 import { usePolling } from '../../hooks/usePolling'
 import ErrorBanner from '../ErrorBanner'
+import Metric from '../Metric'
 import { SkeletonCards } from '../Skeleton'
 
 const STAT_FIELDS = [
-  ['scheduled', '', Clock3],
-  ['queued', '', Inbox],
-  ['claimed', 'claimed', Activity],
-  ['running', 'running', Activity],
-  ['completed', 'completed', CheckCircle2],
-  ['failed', 'failed', XCircle],
-  ['dead', 'dead', Skull],
+  ['scheduled', ''],
+  ['queued', ''],
+  ['claimed', 'claimed'],
+  ['running', 'running'],
+  ['completed', 'completed'],
+  ['failed', 'failed'],
+  ['dead', 'dead'],
 ]
 
 export default function QueueConfigPanel({ queue, onChanged }) {
@@ -59,15 +60,9 @@ export default function QueueConfigPanel({ queue, onChanged }) {
       {loading && !stats ? (
         <SkeletonCards count={7} />
       ) : (
-        <div className="stat-grid">
-          {STAT_FIELDS.map(([field, tone, Icon]) => (
-            <div className={`stat-card${tone ? ` stat-${tone}` : ''}`} key={field}>
-              <div className="stat-card-top">
-                <div className="stat-label">{field}</div>
-                <Icon size={15} strokeWidth={2} className="stat-icon" />
-              </div>
-              <div className="stat-value">{stats?.[field] ?? '—'}</div>
-            </div>
+        <div className="metric-grid">
+          {STAT_FIELDS.map(([field, tone]) => (
+            <Metric key={field} label={field} value={stats?.[field]} tone={tone} />
           ))}
         </div>
       )}
@@ -98,7 +93,6 @@ export default function QueueConfigPanel({ queue, onChanged }) {
           Save
         </button>
         <button type="button" className="btn-ghost" onClick={togglePause}>
-          {queue.is_paused ? <Play size={13} /> : <Pause size={13} />}
           {queue.is_paused ? 'Resume queue' : 'Pause queue'}
         </button>
       </form>

@@ -16,11 +16,11 @@ export function SkeletonRows({ rows = 4, cols = 4 }) {
 
 export function SkeletonCards({ count = 4 }) {
   return (
-    <div className="stat-grid">
+    <div className="metric-grid">
       {Array.from({ length: count }).map((_, i) => (
-        <div className="stat-card" key={i}>
-          <span className="skeleton skeleton-bar" style={{ width: '50%', height: 11 }} />
-          <span className="skeleton skeleton-bar" style={{ width: '35%', height: 24, marginTop: 10 }} />
+        <div key={i}>
+          <span className="skeleton skeleton-bar" style={{ width: 44, height: 27 }} />
+          <span className="skeleton skeleton-bar" style={{ width: 60, height: 10, marginTop: 6 }} />
         </div>
       ))}
     </div>

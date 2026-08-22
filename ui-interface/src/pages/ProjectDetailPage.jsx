@@ -1,7 +1,7 @@
 import { Layers, ListPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { toast } from 'react-toastify'
 import { getProject } from '../api/projects'
 import { createQueue, listQueues } from '../api/queues'
 import Breadcrumbs from '../components/Breadcrumbs'

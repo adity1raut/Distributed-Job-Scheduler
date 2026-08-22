@@ -1,7 +1,7 @@
-import { FolderKanban, FolderPlus, Trash2 } from 'lucide-react'
+import { FolderKanban, FolderPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { toast } from 'react-toastify'
 import { createProject, deleteProject, listProjects } from '../api/projects'
 import EmptyState from '../components/EmptyState'
 import ErrorBanner from '../components/ErrorBanner'
@@ -72,9 +72,6 @@ export default function ProjectsPage() {
       <div className="card-grid">
         {projects?.map((project) => (
           <div className="entity-card" key={project.id}>
-            <div className="entity-card-icon">
-              <FolderKanban size={16} strokeWidth={2} />
-            </div>
             <Link to={`/projects/${project.id}`} className="entity-card-title">
               {project.name}
             </Link>
@@ -82,7 +79,6 @@ export default function ProjectsPage() {
               Created <Timestamp value={project.created_at} />
             </div>
             <button className="btn-ghost btn-danger" onClick={() => handleDelete(project.id, project.name)}>
-              <Trash2 size={13} />
               Delete
             </button>
           </div>

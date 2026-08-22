@@ -1,5 +1,5 @@
-import { RotateCcw, ShieldCheck } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { ShieldCheck } from 'lucide-react'
+import { toast } from 'react-toastify'
 import { listDeadLetters, replayDeadLetter } from '../../api/dlq'
 import { usePolling } from '../../hooks/usePolling'
 import CopyableId from '../CopyableId'
@@ -49,7 +49,6 @@ export default function DlqPanel({ queueId }) {
                 <td>{entry.replayed ? 'yes' : 'no'}</td>
                 <td>
                   <button className="btn-ghost" disabled={entry.replayed} onClick={() => handleReplay(entry.id)}>
-                    <RotateCcw size={13} />
                     Replay
                   </button>
                 </td>
