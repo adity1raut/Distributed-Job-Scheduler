@@ -1,10 +1,14 @@
+import { ChevronDown, ChevronUp, HeartPulse, Server } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { listWorkers, workerHeartbeats } from '../api/workers'
+import EmptyState from '../components/EmptyState'
 import ErrorBanner from '../components/ErrorBanner'
+import { SkeletonRows } from '../components/Skeleton'
+import Timestamp from '../components/Timestamp'
 import { usePolling } from '../hooks/usePolling'
 
 export default function WorkersPage() {
-  const { data: workers, error } = usePolling(listWorkers, [], 5000)
+  const { data: workers, error, loading } = usePolling(listWorkers, [], 5000)
   const [expanded, setExpanded] = useState(null)
   const [heartbeats, setHeartbeats] = useState([])
 
@@ -21,7 +25,10 @@ export default function WorkersPage() {
   return (
     <div>
       <div className="page-header">
-        <h2>Workers</h2>
+        <div>
+          <h2>Workers</h2>
+          <p className="page-sub">Every worker that has registered, with its live heartbeat status.</p>
+        </div>
       </div>
       <ErrorBanner message={error} />
       <div className="table-wrap">
@@ -37,21 +44,28 @@ export default function WorkersPage() {
             </tr>
           </thead>
           <tbody>
+            {loading && !workers && <SkeletonRows rows={2} cols={6} />}
             {workers?.map((w) => (
               <Fragment key={w.id}>
                 <tr>
                   <td>{w.hostname}</td>
                   <td>
                     <span className={`badge ${w.status === 'online' && !w.is_stale ? 'badge-completed' : 'badge-failed'}`}>
+                      <span className={`status-dot${w.status === 'online' && !w.is_stale ? ' pulse' : ''}`} />
                       {w.status === 'online' && w.is_stale ? 'stale' : w.status}
                     </span>
                   </td>
-                  <td>{new Date(w.started_at).toLocaleString()}</td>
-                  <td>{w.last_heartbeat_at ? new Date(w.last_heartbeat_at).toLocaleTimeString() : '—'}</td>
-                  <td>{w.active_job_count ?? 0}</td>
+                  <td>
+                    <Timestamp value={w.started_at} />
+                  </td>
+                  <td>
+                    <Timestamp value={w.last_heartbeat_at} />
+                  </td>
+                  <td className="mono num">{w.active_job_count ?? 0}</td>
                   <td>
                     <button className="btn-ghost" onClick={() => toggle(w.id)}>
-                      {expanded === w.id ? 'Hide' : 'History'}
+                      {expanded === w.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      History
                     </button>
                   </td>
                 </tr>
@@ -62,7 +76,10 @@ export default function WorkersPage() {
                         {heartbeats.length === 0 && <p className="muted">No heartbeat history.</p>}
                         {heartbeats.map((hb) => (
                           <div key={hb.id} className="log-line">
-                            <span className="mono">{new Date(hb.reported_at).toLocaleString()}</span>
+                            <HeartPulse size={12} className="log-hb-icon" />
+                            <span className="mono">
+                              <Timestamp value={hb.reported_at} />
+                            </span>
                             <span>{hb.active_job_count} active</span>
                           </div>
                         ))}
@@ -75,7 +92,9 @@ export default function WorkersPage() {
           </tbody>
         </table>
       </div>
-      {workers && workers.length === 0 && <p className="muted">No workers have registered yet.</p>}
+      {workers && workers.length === 0 && (
+        <EmptyState icon={Server} title="No workers registered" hint="Start `cmd/worker` to see it appear here." />
+      )}
     </div>
   )
 }

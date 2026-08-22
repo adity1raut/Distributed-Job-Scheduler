@@ -1,3 +1,4 @@
+import { Send } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { submitJob } from '../../api/jobs'
@@ -83,11 +84,12 @@ export default function JobSubmitForm({ queueId, onSubmitted }) {
           />
         )}
         <button className="btn" type="submit" disabled={submitting}>
-          Submit job
+          <Send size={14} />
+          {submitting ? 'Submitting…' : 'Submit job'}
         </button>
       </div>
       <textarea
-        className="payload-input"
+        className="payload-input mono"
         rows={2}
         value={payload}
         onChange={(e) => setPayload(e.target.value)}

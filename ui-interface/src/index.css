@@ -1,29 +1,42 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --border: #dde1e8;
+
+  --text: #4a5164;
+  --text-h: #14171f;
+  --text-muted: #7a8194;
+
+  --accent: #8a5410;
+  --accent-bg: rgba(138, 84, 16, 0.1);
+  --accent-border: rgba(138, 84, 16, 0.35);
+
   --danger: #dc2626;
   --danger-bg: rgba(220, 38, 38, 0.1);
   --success: #16a34a;
   --success-bg: rgba(22, 163, 74, 0.1);
 
-  --status-scheduled: #7c5cff;
-  --status-scheduled-bg: rgba(124, 92, 255, 0.12);
-  --status-claimed: #0f8b8d;
-  --status-claimed-bg: rgba(15, 139, 141, 0.12);
-  --status-running: #2563eb;
-  --status-running-bg: rgba(37, 99, 235, 0.12);
-  --status-dead: #881337;
-  --status-dead-bg: rgba(136, 19, 55, 0.12);
+  --status-scheduled: #6552c9;
+  --status-scheduled-bg: rgba(101, 82, 201, 0.12);
+  --status-claimed: #0f7d7f;
+  --status-claimed-bg: rgba(15, 125, 127, 0.12);
+  --status-running: #1a5fc4;
+  --status-running-bg: rgba(26, 95, 196, 0.12);
+  --status-dead: #97133b;
+  --status-dead-bg: rgba(151, 19, 59, 0.12);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --shadow-sm: 0 1px 2px rgba(20, 23, 31, 0.06);
+  --shadow-md: 0 6px 20px rgba(20, 23, 31, 0.08);
 
-  font: 15px/145% var(--sans);
+  --radius: 10px;
+  --radius-sm: 7px;
+
+  --display: 'Manrope', system-ui, sans-serif;
+  --sans: 'Public Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+
+  font: 14.5px/1.55 var(--sans);
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
@@ -35,17 +48,23 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
+    --bg: #0f131a;
+    --surface: #171c26;
+    --surface-2: #1c222e;
+    --border: #2b3243;
+
+    --text: #b7bdcc;
+    --text-h: #f2f4f9;
+    --text-muted: #838ba0;
+
+    --accent: #e3a44d;
+    --accent-bg: rgba(227, 164, 77, 0.14);
+    --accent-border: rgba(227, 164, 77, 0.4);
+
     --danger-bg: rgba(220, 38, 38, 0.2);
     --success-bg: rgba(22, 163, 74, 0.2);
 
-    --status-scheduled: #a794ff;
+    --status-scheduled: #a795f2;
     --status-scheduled-bg: rgba(167, 148, 255, 0.16);
     --status-claimed: #2dd4d6;
     --status-claimed-bg: rgba(45, 212, 214, 0.16);
@@ -53,6 +72,9 @@
     --status-running-bg: rgba(96, 165, 250, 0.16);
     --status-dead: #fb7185;
     --status-dead-bg: rgba(251, 113, 133, 0.18);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -70,11 +92,13 @@ body {
 
 h1,
 h2,
-h3 {
-  font-family: var(--sans);
-  font-weight: 600;
+h3,
+h4 {
+  font-family: var(--display);
+  font-weight: 700;
   color: var(--text-h);
   margin: 0 0 12px;
+  letter-spacing: -0.01em;
 }
 
 a {
@@ -83,10 +107,46 @@ a {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
 code {
   font-family: var(--mono);
+}
+
+::selection {
+  background: var(--accent-bg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .status-dot.pulse {
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 currentColor;
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 3px transparent;
+    opacity: 0.7;
+  }
 }

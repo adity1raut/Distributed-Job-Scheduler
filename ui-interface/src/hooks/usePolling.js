@@ -9,6 +9,7 @@ export function usePolling(fetcher, deps, intervalMs = 5000) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [updatedAt, setUpdatedAt] = useState(null)
   const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export function usePolling(fetcher, deps, intervalMs = 5000) {
         if (!cancelled) {
           setData(result)
           setError('')
+          setUpdatedAt(new Date())
         }
       } catch (err) {
         if (!cancelled) setError(err.message)
@@ -44,5 +46,5 @@ export function usePolling(fetcher, deps, intervalMs = 5000) {
 
   const reload = useCallback(() => setReloadTick((t) => t + 1), [])
 
-  return { data, error, loading, reload }
+  return { data, error, loading, updatedAt, reload }
 }

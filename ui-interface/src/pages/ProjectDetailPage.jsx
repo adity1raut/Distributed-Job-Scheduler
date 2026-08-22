@@ -1,15 +1,20 @@
+import { Layers, ListPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { getProject } from '../api/projects'
 import { createQueue, listQueues } from '../api/queues'
+import Breadcrumbs from '../components/Breadcrumbs'
+import EmptyState from '../components/EmptyState'
 import ErrorBanner from '../components/ErrorBanner'
+import { SkeletonRows } from '../components/Skeleton'
+import Timestamp from '../components/Timestamp'
 import { usePolling } from '../hooks/usePolling'
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams()
   const { data: project } = usePolling(() => getProject(projectId), [projectId], 0)
-  const { data: queues, error, reload } = usePolling(() => listQueues(projectId), [projectId], 5000)
+  const { data: queues, error, loading, reload } = usePolling(() => listQueues(projectId), [projectId], 5000)
 
   const [name, setName] = useState('')
   const [priority, setPriority] = useState(0)
@@ -36,8 +41,12 @@ export default function ProjectDetailPage() {
 
   return (
     <div>
+      <Breadcrumbs items={[{ label: 'Projects', to: '/projects' }, { label: project?.name || '…' }]} />
       <div className="page-header">
-        <h2>{project?.name || 'Project'}</h2>
+        <div>
+          <h2>{project?.name || 'Project'}</h2>
+          <p className="page-sub">Queues configure priority, concurrency, and retry behavior independently.</p>
+        </div>
       </div>
 
       <form className="inline-form" onSubmit={handleCreate}>
@@ -60,12 +69,15 @@ export default function ProjectDetailPage() {
           style={{ width: 100 }}
         />
         <button className="btn" type="submit">
+          <ListPlus size={15} />
           Create queue
         </button>
       </form>
       <ErrorBanner message={error || formError} />
 
-      {queues && queues.length === 0 && <p className="muted">No queues yet — create one above.</p>}
+      {!loading && queues && queues.length === 0 && (
+        <EmptyState icon={Layers} title="No queues yet" hint="Create one above to start submitting jobs." />
+      )}
 
       <div className="table-wrap">
         <table>
@@ -79,19 +91,24 @@ export default function ProjectDetailPage() {
             </tr>
           </thead>
           <tbody>
+            {loading && !queues && <SkeletonRows rows={3} cols={5} />}
             {queues?.map((queue) => (
               <tr key={queue.id}>
                 <td>
-                  <Link to={`/queues/${queue.id}`}>{queue.name}</Link>
+                  <Link to={`/queues/${queue.id}`} className="row-title">
+                    {queue.name}
+                  </Link>
                 </td>
-                <td>{queue.priority}</td>
-                <td>{queue.concurrency_limit}</td>
+                <td className="mono num">{queue.priority}</td>
+                <td className="mono num">{queue.concurrency_limit}</td>
                 <td>
                   <span className={`badge ${queue.is_paused ? 'badge-failed' : 'badge-completed'}`}>
                     {queue.is_paused ? 'paused' : 'active'}
                   </span>
                 </td>
-                <td>{new Date(queue.created_at).toLocaleString()}</td>
+                <td>
+                  <Timestamp value={queue.created_at} />
+                </td>
               </tr>
             ))}
           </tbody>

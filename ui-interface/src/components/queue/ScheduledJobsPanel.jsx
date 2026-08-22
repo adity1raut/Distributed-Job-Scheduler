@@ -1,3 +1,4 @@
+import { CalendarClock, CalendarPlus, Pause, Play } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import {
@@ -7,10 +8,13 @@ import {
   resumeScheduledJob,
 } from '../../api/scheduledJobs'
 import { usePolling } from '../../hooks/usePolling'
+import EmptyState from '../EmptyState'
 import ErrorBanner from '../ErrorBanner'
+import { SkeletonRows } from '../Skeleton'
+import Timestamp from '../Timestamp'
 
 export default function ScheduledJobsPanel({ queueId }) {
-  const { data, error, reload } = usePolling(() => listScheduledJobs(queueId), [queueId], 5000)
+  const { data, error, loading, reload } = usePolling(() => listScheduledJobs(queueId), [queueId], 5000)
   const [cron, setCron] = useState('*/5 * * * *')
   const [payload, setPayload] = useState('{}')
   const [formError, setFormError] = useState('')
@@ -53,15 +57,18 @@ export default function ScheduledJobsPanel({ queueId }) {
           value={cron}
           onChange={(e) => setCron(e.target.value)}
           placeholder="Cron expression, e.g. */5 * * * *"
+          className="mono"
           style={{ width: 200 }}
         />
         <input
           value={payload}
           onChange={(e) => setPayload(e.target.value)}
           placeholder="Payload template JSON"
+          className="mono"
           style={{ width: 200 }}
         />
         <button className="btn" type="submit">
+          <CalendarPlus size={15} />
           Add schedule
         </button>
       </form>
@@ -78,10 +85,13 @@ export default function ScheduledJobsPanel({ queueId }) {
             </tr>
           </thead>
           <tbody>
+            {loading && !data && <SkeletonRows rows={2} cols={4} />}
             {data?.map((sj) => (
               <tr key={sj.id}>
                 <td className="mono">{sj.cron_expression}</td>
-                <td>{new Date(sj.next_run_at).toLocaleString()}</td>
+                <td>
+                  <Timestamp value={sj.next_run_at} />
+                </td>
                 <td>
                   <span className={`badge ${sj.is_active ? 'badge-completed' : 'badge-failed'}`}>
                     {sj.is_active ? 'active' : 'paused'}
@@ -89,6 +99,7 @@ export default function ScheduledJobsPanel({ queueId }) {
                 </td>
                 <td>
                   <button className="btn-ghost" onClick={() => toggle(sj)}>
+                    {sj.is_active ? <Pause size={13} /> : <Play size={13} />}
                     {sj.is_active ? 'Pause' : 'Resume'}
                   </button>
                 </td>
@@ -97,7 +108,9 @@ export default function ScheduledJobsPanel({ queueId }) {
           </tbody>
         </table>
       </div>
-      {data && data.length === 0 && <p className="muted">No cron schedules on this queue.</p>}
+      {data && data.length === 0 && (
+        <EmptyState icon={CalendarClock} title="No cron schedules" hint="Add one above to run jobs on a recurring basis." />
+      )}
     </div>
   )
 }

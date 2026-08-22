@@ -1,3 +1,4 @@
+import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -28,7 +29,11 @@ export default function RegisterPage() {
   return (
     <div className="auth-page">
       <form className="auth-form" onSubmit={handleSubmit}>
+        <div className="auth-brand">
+          <span className="brand-mark">JS</span>
+        </div>
         <h2>Create account</h2>
+        <p className="page-sub auth-sub">Registers a new organization — you'll be its owner.</p>
         <label className="field">
           Organization name
           <input
@@ -54,9 +59,10 @@ export default function RegisterPage() {
         </label>
         {error && <p className="error">{error}</p>}
         <button className="btn" type="submit" disabled={submitting}>
+          <UserPlus size={15} />
           {submitting ? 'Creating…' : 'Create account'}
         </button>
-        <p>
+        <p className="auth-switch">
           Already have an account? <Link to="/login">Log in</Link>
         </p>
       </form>

@@ -1,9 +1,13 @@
+import { ChevronLeft, ChevronRight, Inbox, RefreshCw } from 'lucide-react'
 import { useCallback, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { listJobs } from '../../api/jobs'
 import { usePolling } from '../../hooks/usePolling'
+import CopyableId from '../CopyableId'
+import EmptyState from '../EmptyState'
 import ErrorBanner from '../ErrorBanner'
+import { SkeletonRows } from '../Skeleton'
 import StatusBadge from '../StatusBadge'
+import Timestamp from '../Timestamp'
 
 const STATUSES = ['', 'scheduled', 'queued', 'claimed', 'running', 'completed', 'failed', 'dead']
 
@@ -35,13 +39,15 @@ export default function JobsTable({ queueId, refreshKey }) {
         <select value={status} onChange={(e) => handleStatusChange(e.target.value)}>
           {STATUSES.map((s) => (
             <option key={s || 'all'} value={s}>
-              {s || 'all statuses'}
+              {s || 'All statuses'}
             </option>
           ))}
         </select>
         <button className="btn-ghost" onClick={reload}>
+          <RefreshCw size={13} />
           Refresh
         </button>
+        {data && <span className="table-count">{data.items.length} shown</span>}
       </div>
       <ErrorBanner message={error} />
 
@@ -58,29 +64,38 @@ export default function JobsTable({ queueId, refreshKey }) {
             </tr>
           </thead>
           <tbody>
+            {loading && !data && <SkeletonRows rows={5} cols={6} />}
             {data?.items.map((job) => (
               <tr key={job.id}>
                 <td>
-                  <Link to={`/jobs/${job.id}`} className="mono">
-                    {job.id.slice(0, 8)}
-                  </Link>
+                  <CopyableId id={job.id} to={`/jobs/${job.id}`} />
                 </td>
-                <td>{job.type}</td>
+                <td className="capitalize">{job.type}</td>
                 <td>
                   <StatusBadge status={job.status} />
                 </td>
-                <td>
+                <td className="mono num">
                   {job.attempts}/{job.max_attempts}
                 </td>
-                <td>{new Date(job.run_at).toLocaleString()}</td>
-                <td>{new Date(job.updated_at).toLocaleString()}</td>
+                <td>
+                  <Timestamp value={job.run_at} />
+                </td>
+                <td>
+                  <Timestamp value={job.updated_at} />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {loading && !data && <p className="muted">Loading…</p>}
-      {data && data.items.length === 0 && <p className="muted">No jobs match this filter.</p>}
+
+      {data && data.items.length === 0 && (
+        <EmptyState
+          icon={Inbox}
+          title={status ? `No ${status} jobs` : 'No jobs yet'}
+          hint={status ? 'Try a different status filter.' : 'Submit one above to see it here.'}
+        />
+      )}
 
       <div className="table-toolbar">
         <button
@@ -88,14 +103,16 @@ export default function JobsTable({ queueId, refreshKey }) {
           disabled={cursorStack.length === 1}
           onClick={() => setCursorStack((s) => s.slice(0, -1))}
         >
-          ← Previous
+          <ChevronLeft size={13} />
+          Previous
         </button>
         <button
           className="btn-ghost"
           disabled={!data?.next_cursor}
           onClick={() => setCursorStack((s) => [...s, data.next_cursor])}
         >
-          Next →
+          Next
+          <ChevronRight size={13} />
         </button>
       </div>
     </div>

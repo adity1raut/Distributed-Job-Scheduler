@@ -1,21 +1,23 @@
+import { Activity, CheckCircle2, Clock3, Inbox, Pause, Play, Save, Skull, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { pauseQueue, queueStats, resumeQueue, updateQueueConfig } from '../../api/queues'
 import { usePolling } from '../../hooks/usePolling'
 import ErrorBanner from '../ErrorBanner'
+import { SkeletonCards } from '../Skeleton'
 
 const STAT_FIELDS = [
-  ['scheduled', ''],
-  ['queued', ''],
-  ['claimed', 'claimed'],
-  ['running', 'running'],
-  ['completed', 'completed'],
-  ['failed', 'failed'],
-  ['dead', 'dead'],
+  ['scheduled', '', Clock3],
+  ['queued', '', Inbox],
+  ['claimed', 'claimed', Activity],
+  ['running', 'running', Activity],
+  ['completed', 'completed', CheckCircle2],
+  ['failed', 'failed', XCircle],
+  ['dead', 'dead', Skull],
 ]
 
 export default function QueueConfigPanel({ queue, onChanged }) {
-  const { data: stats } = usePolling(() => queueStats(queue.id), [queue.id], 5000)
+  const { data: stats, loading } = usePolling(() => queueStats(queue.id), [queue.id], 5000)
   const [priority, setPriority] = useState(queue.priority)
   const [concurrencyLimit, setConcurrencyLimit] = useState(queue.concurrency_limit)
   const [error, setError] = useState('')
@@ -53,15 +55,24 @@ export default function QueueConfigPanel({ queue, onChanged }) {
 
   return (
     <div>
-      <div className="stat-grid">
-        {STAT_FIELDS.map(([field, tone]) => (
-          <div className={`stat-card${tone ? ` stat-${tone}` : ''}`} key={field}>
-            <div className="stat-label">{field}</div>
-            <div className="stat-value">{stats?.[field] ?? '—'}</div>
-          </div>
-        ))}
-      </div>
+      <div className="section-label">Live counts</div>
+      {loading && !stats ? (
+        <SkeletonCards count={7} />
+      ) : (
+        <div className="stat-grid">
+          {STAT_FIELDS.map(([field, tone, Icon]) => (
+            <div className={`stat-card${tone ? ` stat-${tone}` : ''}`} key={field}>
+              <div className="stat-card-top">
+                <div className="stat-label">{field}</div>
+                <Icon size={15} strokeWidth={2} className="stat-icon" />
+              </div>
+              <div className="stat-value">{stats?.[field] ?? '—'}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
+      <div className="section-label">Configuration</div>
       <form className="inline-form" onSubmit={handleSave}>
         <label className="inline-label">
           Priority
@@ -83,9 +94,11 @@ export default function QueueConfigPanel({ queue, onChanged }) {
           />
         </label>
         <button className="btn" type="submit" disabled={saving}>
+          <Save size={14} />
           Save
         </button>
         <button type="button" className="btn-ghost" onClick={togglePause}>
+          {queue.is_paused ? <Play size={13} /> : <Pause size={13} />}
           {queue.is_paused ? 'Resume queue' : 'Pause queue'}
         </button>
       </form>
