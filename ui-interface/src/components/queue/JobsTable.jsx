@@ -5,11 +5,13 @@ import { usePolling } from '../../hooks/usePolling'
 import CopyableId from '../CopyableId'
 import EmptyState from '../EmptyState'
 import ErrorBanner from '../ErrorBanner'
+import Select from '../Select'
 import { SkeletonRows } from '../Skeleton'
 import StatusBadge from '../StatusBadge'
 import Timestamp from '../Timestamp'
 
 const STATUSES = ['', 'scheduled', 'queued', 'claimed', 'running', 'completed', 'failed', 'dead']
+const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s || 'All statuses' }))
 
 export default function JobsTable({ queueId, refreshKey }) {
   const [status, setStatus] = useState('')
@@ -36,13 +38,7 @@ export default function JobsTable({ queueId, refreshKey }) {
   return (
     <div>
       <div className="table-toolbar">
-        <select value={status} onChange={(e) => handleStatusChange(e.target.value)}>
-          {STATUSES.map((s) => (
-            <option key={s || 'all'} value={s}>
-              {s || 'All statuses'}
-            </option>
-          ))}
-        </select>
+        <Select value={status} onChange={handleStatusChange} options={STATUS_OPTIONS} style={{ minWidth: 160 }} />
         <button className="btn-ghost" onClick={reload}>
           Refresh
         </button>

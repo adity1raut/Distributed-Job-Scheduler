@@ -1,13 +1,13 @@
-import { LogOut, Menu, X } from 'lucide-react'
+import { FolderKanban, Gauge, LogOut, Menu, Server, X } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Wordmark from './Wordmark'
 
 const NAV = [
-  { to: '/', label: 'Overview', end: true },
-  { to: '/projects', label: 'Projects', end: false },
-  { to: '/workers', label: 'Workers', end: false },
+  { to: '/', label: 'Overview', end: true, icon: Gauge },
+  { to: '/projects', label: 'Projects', end: false, icon: FolderKanban },
+  { to: '/workers', label: 'Workers', end: false, icon: Server },
 ]
 
 export default function Layout() {
@@ -37,7 +37,7 @@ export default function Layout() {
         </div>
 
         <div className="nav-links">
-          {NAV.map(({ to, label, end }) => (
+          {NAV.map(({ to, label, end, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -45,6 +45,7 @@ export default function Layout() {
               onClick={() => setDrawerOpen(false)}
               className={({ isActive }) => (isActive ? 'active' : '')}
             >
+              <Icon size={17} strokeWidth={2.25} />
               {label}
             </NavLink>
           ))}

@@ -52,10 +52,10 @@
 /* ---------- sidebar ---------- */
 
 .sidebar {
-  width: 232px;
+  width: 248px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
-  padding: 20px 14px;
+  padding: 22px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -74,9 +74,9 @@
 
 .brand-name {
   font-family: var(--mono);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-h);
-  font-size: 14px;
+  font-size: 15.5px;
   letter-spacing: -0.01em;
 }
 
@@ -87,28 +87,42 @@
 .nav-links {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
 }
 
 .sidebar a {
   display: flex;
   align-items: center;
-  padding: 7px 10px;
+  gap: 11px;
+  padding: 10px 12px;
   color: var(--text);
   text-decoration: none;
-  font-size: 13.5px;
-  font-weight: 500;
-  border-left: 2px solid transparent;
+  font-size: 14.5px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+
+.sidebar a svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .sidebar a:hover {
+  color: var(--text-h);
+  background: var(--surface-2);
+}
+
+.sidebar a:hover svg {
   color: var(--text-h);
 }
 
 .sidebar a.active {
   color: var(--accent);
-  border-left-color: var(--accent);
-  font-weight: 600;
+  background: var(--accent-bg);
+}
+
+.sidebar a.active svg {
+  color: var(--accent);
 }
 
 .sidebar-spacer {
@@ -234,8 +248,9 @@
   flex-direction: column;
   gap: 12px;
   border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
   border-radius: var(--radius);
-  padding: 36px;
+  padding: 40px 36px 36px;
   background: var(--surface);
   box-shadow: var(--shadow-md);
 }
@@ -247,19 +262,24 @@
 }
 
 .auth-brand .brand-name {
-  font-size: 17px;
+  font-size: 19px;
 }
 
 .auth-sub {
-  margin: -6px 0 8px;
+  margin: 2px 0 8px;
   text-align: center;
 }
 
-.auth-switch {
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-muted);
-  margin: 4px 0 0;
+.auth-tab-row {
+  width: 100%;
+  display: flex;
+  margin-bottom: 4px;
+}
+
+.auth-tab-row .tab {
+  flex: 1;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .field {
@@ -285,19 +305,25 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 16px;
+  padding: 10px 18px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 13.5px;
-  transition: filter 0.15s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+  transition: filter 0.15s, transform 0.08s, box-shadow 0.08s;
 }
 
 .btn:hover:not(:disabled) {
   filter: brightness(1.08);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 .btn:disabled {
@@ -309,19 +335,24 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .btn-ghost:hover:not(:disabled) {
   background: var(--surface-2);
   color: var(--text-h);
+  border-color: var(--text-muted);
+}
+
+.btn-ghost:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn-ghost:disabled {
@@ -490,21 +521,22 @@ button:focus-visible {
 }
 
 .metric-value {
-  font-size: 27px;
+  font-size: 31px;
   font-weight: 800;
   font-family: var(--display);
   color: var(--text-h);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  letter-spacing: -0.01em;
 }
 
 .metric-label {
   font-size: 11.5px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
-  font-weight: 600;
-  margin-top: 5px;
+  font-weight: 700;
+  margin-top: 6px;
 }
 
 .metric-running .metric-value {
@@ -533,15 +565,22 @@ button:focus-visible {
 
 .entity-card {
   border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   border-radius: var(--radius);
-  padding: 16px 18px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   background: var(--surface);
+  transition: box-shadow 0.14s ease, border-color 0.14s ease;
+}
+
+.entity-card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .entity-card-title {
+  font-size: 15.5px;
   font-weight: 700;
   font-family: var(--display);
   color: var(--text-h);
@@ -569,6 +608,7 @@ button:focus-visible {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 table {
@@ -579,13 +619,17 @@ table {
 th,
 td {
   text-align: left;
-  padding: 10px 14px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 tbody tr:last-child td {
   border-bottom: none;
+}
+
+tbody tr {
+  transition: background-color 0.1s ease;
 }
 
 tbody tr:hover {
@@ -594,11 +638,12 @@ tbody tr:hover {
 
 th {
   color: var(--text-muted);
-  font-weight: 600;
-  font-size: 11px;
+  font-weight: 700;
+  font-size: 11.5px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.05em;
+  background: var(--surface-2);
+  border-bottom: 2px solid var(--border);
 }
 
 .row-title {
@@ -662,10 +707,14 @@ th {
 /* ---------- tabs ---------- */
 
 .tab-row {
-  display: flex;
-  gap: 2px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 18px;
+  display: inline-flex;
+  gap: 3px;
+  max-width: 100%;
+  padding: 4px;
+  margin-bottom: 22px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 3px);
+  background: var(--surface-2);
   overflow-x: auto;
 }
 
@@ -676,14 +725,14 @@ th {
   flex-shrink: 0;
   white-space: nowrap;
   background: none;
-  border: none;
-  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 10px 20px;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 13.5px;
-  font-weight: 500;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .tab:hover {
@@ -691,9 +740,10 @@ th {
 }
 
 .tab-active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
+  color: var(--text-h);
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
 /* ---------- job submit / payload ---------- */
@@ -907,12 +957,14 @@ th {
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
+  gap: 6px;
+  padding: 4px 12px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   text-transform: capitalize;
+  box-shadow: inset 0 0 0 1px currentColor;
 }
 
 .status-dot {
@@ -953,65 +1005,203 @@ th {
   color: var(--status-dead);
 }
 
-/* ---------- toasts (react-toastify) ---------- */
-/* A flat notice with a colored left rule reads as an instrument-panel
-   alert, not the default rounded pill + circular icon every toast library
-   ships with. */
+/* ---------- toasts (in-house — see lib/toast.js + components/ToastHost.jsx) ---------- */
+/* A flat notice with a colored left rule and a bottom progress sliver reads
+   as an instrument-panel alert, not the default rounded pill + circular
+   icon every toast library ships with. */
 
-.Toastify__toast-container {
+.toast-host {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   width: 336px;
-  padding: 0;
+  max-width: calc(100vw - 32px);
 }
 
-.Toastify__toast {
-  background: var(--surface) !important;
-  color: var(--text-h) !important;
+.toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--text-h);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  margin-bottom: 10px;
+  padding: 12px 30px 14px 14px;
   font-size: 13.5px;
-  font-family: var(--sans);
-  align-items: flex-start;
   box-shadow: var(--shadow-md);
+  animation: toast-in 0.22s ease;
 }
 
-.Toastify__toast-body {
-  color: inherit !important;
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.Toastify__toast--success {
+.toast-success {
   border-left-color: var(--success);
 }
-.Toastify__toast--error {
+.toast-success .toast-icon {
+  color: var(--success);
+}
+
+.toast-error {
   border-left-color: var(--danger);
 }
-.Toastify__toast--info {
-  border-left-color: var(--accent);
-}
-.Toastify__toast--warning {
-  border-left-color: var(--toastify-color-warning);
+.toast-error .toast-icon {
+  color: var(--danger);
 }
 
-.Toastify__toast-body {
-  padding: 0;
-  margin: 0;
+.toast-icon {
+  flex: none;
+  margin-top: 1px;
 }
 
-.Toastify__close-button {
+.toast-message {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.toast-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  padding: 2px;
+  border: none;
+  background: none;
   color: var(--text-muted);
   opacity: 0.7;
-  align-self: center;
+  cursor: pointer;
 }
-.Toastify__close-button:hover {
+.toast-close:hover {
   opacity: 1;
   color: var(--text-h);
 }
 
-.Toastify__progress-bar {
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
   height: 2px;
+  width: 100%;
+  background: currentColor;
+  color: var(--border);
   opacity: 0.6;
+  transform-origin: left;
+  animation-name: toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.toast-success .toast-progress {
+  color: var(--success);
+}
+.toast-error .toast-progress {
+  color: var(--danger);
+}
+
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* ---------- confirm dialog (in-house — replaces window.confirm) ---------- */
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 18, 0.5);
+  animation: confirm-fade-in 0.15s ease;
+}
+
+@keyframes confirm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.confirm-card {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+  animation: confirm-pop-in 0.16s ease;
+}
+
+@keyframes confirm-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.confirm-icon {
+  color: var(--danger);
+  margin-bottom: 10px;
+}
+
+.confirm-message {
+  margin: 0 0 18px;
+  color: var(--text-h);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn-danger-solid {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--danger);
+  background: var(--danger);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.btn-danger-solid:hover {
+  filter: brightness(1.08);
+}
+.btn-danger-solid:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 1px;
 }
 
 /* ---------- responsive: tablet and below ---------- */
@@ -1103,4 +1293,94 @@ th {
   td {
     padding: 8px 10px;
   }
+}
+
+/* Custom <select> replacement — see components/Select.jsx. The native
+   option list renders as an unthemed OS popup even on a dark page, so this
+   is a fully custom trigger + menu styled from the same tokens as the rest
+   of the app. */
+.select {
+  position: relative;
+  display: inline-block;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.select-trigger:hover {
+  border-color: var(--accent-border);
+}
+
+.select-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.select-chevron {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.select-chevron-open {
+  transform: rotate(180deg);
+}
+
+.select-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.select-option {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.select-option:hover {
+  background: var(--surface-2);
+  color: var(--text-h);
+}
+
+.select-option-active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
 }

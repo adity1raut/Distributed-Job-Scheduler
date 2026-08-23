@@ -1,8 +1,8 @@
 import { Route, Routes } from 'react-router-dom'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
+import ConfirmHost from './components/ConfirmHost'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import ToastHost from './components/ToastHost'
 import { AuthProvider } from './context/AuthContext'
 import DashboardPage from './pages/DashboardPage'
 import JobDetailPage from './pages/JobDetailPage'
@@ -17,16 +17,8 @@ import './App.css'
 export default function App() {
   return (
     <AuthProvider>
-      <ToastContainer
-        position="top-right"
-        autoClose={3500}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        icon={false}
-        toastClassName="app-toast"
-      />
+      <ToastHost />
+      <ConfirmHost />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

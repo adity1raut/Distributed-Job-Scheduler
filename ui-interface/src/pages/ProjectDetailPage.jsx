@@ -1,7 +1,6 @@
 import { Layers, ListPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { toast } from 'react-toastify'
 import { getProject } from '../api/projects'
 import { createQueue, listQueues } from '../api/queues'
 import Breadcrumbs from '../components/Breadcrumbs'
@@ -10,6 +9,7 @@ import ErrorBanner from '../components/ErrorBanner'
 import { SkeletonRows } from '../components/Skeleton'
 import Timestamp from '../components/Timestamp'
 import { usePolling } from '../hooks/usePolling'
+import { toast } from '../lib/toast'
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams()

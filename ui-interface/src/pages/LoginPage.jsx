@@ -1,6 +1,7 @@
 import { LogIn } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import AuthTabs from '../components/AuthTabs'
 import Wordmark from '../components/Wordmark'
 import { useAuth } from '../context/AuthContext'
 
@@ -32,7 +33,7 @@ export default function LoginPage() {
         <div className="auth-brand">
           <Wordmark />
         </div>
-        <h2>Log in</h2>
+        <AuthTabs />
         <p className="page-sub auth-sub">Welcome back — pick up where your queues left off.</p>
         <label className="field">
           Email
@@ -52,9 +53,6 @@ export default function LoginPage() {
           <LogIn size={15} />
           {submitting ? 'Logging in…' : 'Log in'}
         </button>
-        <p className="auth-switch">
-          No account? <Link to="/register">Register</Link>
-        </p>
       </form>
     </div>
   )

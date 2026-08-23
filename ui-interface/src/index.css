@@ -35,25 +35,6 @@
   --sans: 'Public Sans', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
 
-  /* Re-point react-toastify's own variables at our tokens, so a toast
-     themes itself the same way every other surface in the app does —
-     rather than shipping its default light-pill-with-icon look. */
-  --toastify-color-light: var(--surface);
-  --toastify-color-dark: var(--surface);
-  --toastify-text-color-light: var(--text-h);
-  --toastify-text-color-dark: var(--text-h);
-  --toastify-color-success: var(--success);
-  --toastify-color-error: var(--danger);
-  --toastify-color-info: var(--accent);
-  --toastify-color-warning: #d97706;
-  --toastify-color-progress-light: var(--accent);
-  --toastify-color-progress-dark: var(--accent);
-  --toastify-toast-bd-radius: var(--radius-sm);
-  --toastify-toast-min-height: 0;
-  --toastify-toast-shadow: var(--shadow-md);
-  --toastify-font-family: var(--sans);
-  --toastify-z-index: 1000;
-
   font: 14.5px/1.55 var(--sans);
   color-scheme: light dark;
   color: var(--text);
@@ -118,6 +99,22 @@ h4 {
   letter-spacing: -0.01em;
 }
 
+h1 {
+  font-size: 32px;
+}
+
+h2 {
+  font-size: 27px;
+}
+
+h3 {
+  font-size: 18px;
+}
+
+h4 {
+  font-size: 15px;
+}
+
 a {
   color: var(--accent);
 }
@@ -135,6 +132,43 @@ code {
 
 ::selection {
   background: var(--accent-bg);
+}
+
+/* Native spin buttons read as an unstyled browser default next to a
+   custom-themed control — the up/down arrows never picked up any of the
+   app's styling anyway. */
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Thin, theme-colored scrollbar instead of the platform default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 2px solid var(--surface);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  background-clip: padding-box;
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -1,7 +1,7 @@
 import { ShieldCheck } from 'lucide-react'
-import { toast } from 'react-toastify'
 import { listDeadLetters, replayDeadLetter } from '../../api/dlq'
 import { usePolling } from '../../hooks/usePolling'
+import { toast } from '../../lib/toast'
 import CopyableId from '../CopyableId'
 import EmptyState from '../EmptyState'
 import ErrorBanner from '../ErrorBanner'

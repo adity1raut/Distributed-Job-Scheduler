@@ -1,6 +1,7 @@
 import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import AuthTabs from '../components/AuthTabs'
 import Wordmark from '../components/Wordmark'
 import { useAuth } from '../context/AuthContext'
 
@@ -33,7 +34,7 @@ export default function RegisterPage() {
         <div className="auth-brand">
           <Wordmark />
         </div>
-        <h2>Create account</h2>
+        <AuthTabs />
         <p className="page-sub auth-sub">Registers a new organization — you'll be its owner.</p>
         <label className="field">
           Organization name
@@ -63,9 +64,6 @@ export default function RegisterPage() {
           <UserPlus size={15} />
           {submitting ? 'Creating…' : 'Create account'}
         </button>
-        <p className="auth-switch">
-          Already have an account? <Link to="/login">Log in</Link>
-        </p>
       </form>
     </div>
   )

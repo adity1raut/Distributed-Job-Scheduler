@@ -1,7 +1,6 @@
 import { RotateCcw } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { toast } from 'react-toastify'
 import { executionLogs, getJob, retryJob } from '../api/jobs'
 import { getProject } from '../api/projects'
 import { getQueue } from '../api/queues'
@@ -12,6 +11,7 @@ import ErrorBanner from '../components/ErrorBanner'
 import StatusBadge from '../components/StatusBadge'
 import Timestamp from '../components/Timestamp'
 import { usePolling } from '../hooks/usePolling'
+import { toast } from '../lib/toast'
 
 export default function JobDetailPage() {
   const { jobId } = useParams()

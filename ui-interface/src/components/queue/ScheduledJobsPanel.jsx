@@ -1,6 +1,5 @@
 import { CalendarClock, CalendarPlus } from 'lucide-react'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
 import {
   createScheduledJob,
   listScheduledJobs,
@@ -8,6 +7,7 @@ import {
   resumeScheduledJob,
 } from '../../api/scheduledJobs'
 import { usePolling } from '../../hooks/usePolling'
+import { toast } from '../../lib/toast'
 import EmptyState from '../EmptyState'
 import ErrorBanner from '../ErrorBanner'
 import { SkeletonRows } from '../Skeleton'

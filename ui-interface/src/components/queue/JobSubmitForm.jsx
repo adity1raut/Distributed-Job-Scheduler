@@ -1,7 +1,8 @@
 import { Send } from 'lucide-react'
 import { useState } from 'react'
-import { toast } from 'react-toastify'
 import { submitJob } from '../../api/jobs'
+import { toast } from '../../lib/toast'
+import Select from '../Select'
 
 const TYPES = ['immediate', 'delayed', 'scheduled', 'batch']
 
@@ -53,13 +54,7 @@ export default function JobSubmitForm({ queueId, onSubmitted }) {
   return (
     <form className="job-submit-form" onSubmit={handleSubmit}>
       <div className="inline-form">
-        <select value={type} onChange={(e) => setType(e.target.value)}>
-          {TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+        <Select value={type} onChange={setType} options={TYPES} style={{ minWidth: 140 }} />
         {type === 'delayed' && (
           <input
             type="number"

@@ -1,12 +1,13 @@
 import { FolderKanban, FolderPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { toast } from 'react-toastify'
 import { createProject, deleteProject, listProjects } from '../api/projects'
 import EmptyState from '../components/EmptyState'
 import ErrorBanner from '../components/ErrorBanner'
 import Timestamp from '../components/Timestamp'
 import { usePolling } from '../hooks/usePolling'
+import { confirmDialog } from '../lib/confirm'
+import { toast } from '../lib/toast'
 
 export default function ProjectsPage() {
   const { data: projects, error, loading, reload } = usePolling(listProjects, [], 0)
@@ -32,7 +33,11 @@ export default function ProjectsPage() {
   }
 
   const handleDelete = async (id, name) => {
-    if (!confirm(`Delete "${name}" and everything under it — queues, jobs, execution history?`)) return
+    const ok = await confirmDialog(`Delete "${name}" and everything under it — queues, jobs, execution history?`, {
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await deleteProject(id)
       reload()
