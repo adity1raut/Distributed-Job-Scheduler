@@ -16,7 +16,7 @@ monitor the worker fleet, all live against the Go API.
 | **Scheduled jobs** | Create/pause/resume cron definitions |
 | **Dead-letter queue** | Inspect permanently-failed jobs, one-click replay |
 | **Workers** | Fleet status (online/stale), heartbeat history |
-| **Overview** | Org-wide stat cards: queue depth, throughput, failures, dead-lettered, online workers |
+| **Overview** | Org-wide stat cards (queue depth, throughput, failures, dead-lettered, online workers), a status-filterable Recent Jobs feed across every project, every project grouped with its queues, and a Worker Pool table — the landing page you don't need to drill into Projects or Workers to read |
 
 Live views poll the API every few seconds (see `src/hooks/usePolling.js`) —
 no WebSocket dependency, matches the brief's "polling or WebSockets" option.

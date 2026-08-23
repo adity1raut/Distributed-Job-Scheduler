@@ -191,7 +191,6 @@
   flex: 1;
   padding: 28px 36px;
   min-width: 0;
-  max-width: 1180px;
 }
 
 /* ---------- breadcrumbs ---------- */
@@ -454,6 +453,108 @@ button:focus-visible {
 
 .section-label:first-of-type {
   margin-top: 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 24px 0 10px;
+}
+
+.section-header:first-of-type {
+  margin-top: 0;
+}
+
+.section-header .section-label {
+  margin: 0;
+}
+
+.section-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.section-link:hover {
+  color: var(--accent);
+}
+
+.project-group {
+  margin-bottom: 16px;
+}
+
+.project-group:last-of-type {
+  margin-bottom: 0;
+}
+
+.project-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+/* A flex row list, not a <table> — a fixed-column table forces a minimum
+   width that doesn't fit a narrow dashboard column, pushing the queue name
+   itself out of view behind a horizontal scroll. This wraps instead. */
+.queue-mini-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.queue-mini-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.queue-mini-row:last-child {
+  border-bottom: none;
+}
+
+.queue-mini-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+/* Caps a dashboard panel to roughly 7 visible rows and lets the rest slide
+   into view on scroll, instead of the panel growing with however much data
+   exists (or silently truncating it). The header stays pinned so context
+   doesn't scroll away with the rows. */
+.dashboard-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.dashboard-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+@media (max-width: 760px) {
+  .dashboard-columns {
+    grid-template-columns: 1fr;
+  }
 }
 
 .live-indicator {
@@ -760,6 +861,29 @@ th {
   width: 100%;
   font-size: 13px;
   resize: vertical;
+}
+
+.form-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.form-hint svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.form-hint code {
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
 }
 
 .code-block {

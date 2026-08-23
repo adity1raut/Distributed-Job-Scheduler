@@ -236,6 +236,25 @@ Query param: `limit` (default 50).
 }
 ```
 
+### `GET /api/dashboard/recent-jobs`
+The most recently created jobs across every queue in every project in your
+org, newest first — the landing-page equivalent of a queue's job list, so
+you don't have to open a specific queue to see what's happening. Query
+params: `limit` (default 10), `status` (one of `scheduled | queued | claimed
+| running | completed | failed | dead` — omit for every status).
+
+```json
+[
+  {
+    "id": "...", "queue_id": "...", "queue_name": "emails",
+    "project_id": "...", "project_name": "checkout-service",
+    "type": "immediate", "status": "completed",
+    "attempts": 1, "max_attempts": 5,
+    "run_at": "...", "created_at": "...", "updated_at": "..."
+  }
+]
+```
+
 ---
 
 ## Health

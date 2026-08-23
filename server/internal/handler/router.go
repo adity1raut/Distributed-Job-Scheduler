@@ -102,6 +102,7 @@ func NewRouter(d Dependencies) http.Handler {
 			r.Post("/dlq/{entryID}/replay", d.DLQ.Replay)
 
 			r.Get("/dashboard/overview", d.Dashboard.Overview)
+			r.Get("/dashboard/recent-jobs", d.Dashboard.RecentJobs)
 		})
 	})
 
