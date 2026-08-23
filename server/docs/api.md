@@ -1,9 +1,8 @@
 # API Reference
 
-Base URL: `http://localhost:8080` (or whatever `API_PORT` is set to).
-
-All request/response bodies are JSON. All endpoints under `/api` except
-`/api/auth/*` require a bearer token:
+Base URL is `http://localhost:8080` by default (whatever `API_PORT` is set
+to). Everything is JSON in, JSON out. Every route under `/api` needs a
+bearer token except the two auth endpoints:
 
 ```
 Authorization: Bearer <token>
@@ -11,7 +10,8 @@ Authorization: Bearer <token>
 
 ## Errors
 
-Every error response has the same shape:
+Handlers never return a bare error string — it's always the same shape, so
+the frontend has exactly one thing to parse:
 
 ```json
 {
@@ -33,28 +33,31 @@ Every error response has the same shape:
 | 429 | `RATE_LIMITED` | Over `RATE_LIMIT_PER_MIN` requests/minute for your org (or IP, pre-auth) |
 | 500 | `INTERNAL` | Unexpected server error |
 
-`code` is stable and safe to switch on; `message` is human-readable and may change.
+Treat `code` as the stable part — safe to switch on in code. `message` is
+just for a human to read and can change wording over time.
 
 ## Pagination
 
-List endpoints that can grow large (jobs) use **keyset pagination**, not
-`OFFSET` — cheap to page through no matter how deep, unlike offset pagination
-on a large table. Response shape:
+The one endpoint that can genuinely grow large — job listings — pages with
+a cursor instead of `OFFSET`. It's the difference between an index seek and
+a full rescan once that table has a few million rows in it:
 
 ```json
 { "items": [...], "next_cursor": "eyJ0Ijoi..." }
 ```
 
-Pass the cursor back as `?cursor=...` to get the next page; omit it (or leave
-empty) for the first page. `next_cursor` is absent once there's no more data.
+First page: leave `cursor` off. Next page: pass back whatever `next_cursor`
+you got. Once `next_cursor` stops showing up, you're at the end.
 
 ---
 
 ## Auth
 
 ### `POST /api/auth/register`
-Creates a new organization and its first user (role `owner`), and seeds a
-default exponential-backoff retry policy for the org.
+Registering isn't just creating a user — it stands up a brand-new
+organization with you as its `owner`, and quietly seeds a sensible
+exponential-backoff retry policy so you can create a queue right away
+without configuring one yourself first.
 
 ```json
 // request
@@ -92,7 +95,8 @@ default exponential-backoff retry policy for the org.
 ```json
 { "name": "emails", "priority": 0, "concurrency_limit": 5, "retry_policy_id": null }
 ```
-`retry_policy_id` is optional — omitted, it falls back to the org's default policy.
+Leave `retry_policy_id` out and it just uses the org's default policy — no
+need to look one up first if you don't care about a custom retry strategy yet.
 
 ### `GET /api/projects/{projectID}/queues` — list queues in this project
 
@@ -111,7 +115,8 @@ All fields optional; only the ones present are changed.
 ### `DELETE /api/queues/{queueID}` — delete (cascades to its jobs)
 
 ### `POST /api/queues/{queueID}/pause` / `POST /api/queues/{queueID}/resume`
-Stops/resumes workers claiming new jobs from this queue. In-flight jobs finish either way.
+Pausing just stops new claims — nothing gets killed. Whatever's already
+running finishes normally either way.
 
 ### `GET /api/queues/{queueID}/stats`
 ```json
@@ -135,9 +140,10 @@ Stops/resumes workers claiming new jobs from this queue. In-flight jobs finish e
   "batch_count": 0
 }
 ```
-`type` is one of `immediate | delayed | scheduled | batch` (recurring jobs are
-created via the scheduled-jobs endpoints below, not here — a cron fire is
-what turns into a job row of type `recurring`).
+`type` is one of `immediate | delayed | scheduled | batch`. Notice
+`recurring` isn't in that list — you don't submit a recurring job directly,
+you define a schedule (below), and each cron fire is what actually creates
+a job row with `type: "recurring"`.
 
 | type | extra field required | behavior |
 |---|---|---|
@@ -146,9 +152,11 @@ what turns into a job row of type `recurring`).
 | `scheduled` | `run_at` (ISO 8601) | runs at that instant |
 | `batch` | `batch_count >= 2` | creates N job rows sharing a `batch_id` |
 
-`idempotency_key`, if set, is unique per queue — resubmitting the same key
-returns the original job instead of creating a duplicate. Response is always
-an **array** of jobs (length 1 except for `batch`):
+Set `idempotency_key` and resubmitting the exact same key later won't create
+a second job — you'll just get the original one back. One thing that trips
+people up: the response is always an **array**, even for a single job. Only
+`batch` gives you more than one element back.
+
 ```json
 // 201
 [{ "id": "...", "queue_id": "...", "type": "immediate", "status": "queued", "payload": {...}, "attempts": 0, "max_attempts": 5, "run_at": "...", "created_at": "...", "updated_at": "..." }]
@@ -164,8 +172,9 @@ Query params: `status`, `type`, `cursor`, `limit` (default 20, max 100).
 ```
 
 ### `POST /api/jobs/{jobID}/retry` — manual retry
-Resets `attempts` to 0 and requeues immediately, regardless of current status
-(works from `failed` or `dead`).
+Doesn't care what state the job is currently in — resets `attempts` back to
+0 and requeues it right away. Works just as well on something that's `dead`
+as something that's merely `failed`.
 
 ### `GET /api/executions/{executionID}/logs` — structured logs for one attempt
 
@@ -177,9 +186,10 @@ Resets `attempts` to 0 and requeues immediately, regardless of current status
 ```json
 { "cron_expression": "*/5 * * * *", "payload_template": { "task": "echo" } }
 ```
-Standard 5-field cron (`robfig/cron` standard parser). The scheduler ticks
-every `SCHEDULER_TICK_SEC` seconds and inserts a `type: "recurring"` job for
-every definition whose `next_run_at` has passed.
+Standard 5-field cron syntax. Nothing runs the instant you create this —
+the scheduler wakes up every `SCHEDULER_TICK_SEC` seconds, checks which
+definitions are due, and drops a `type: "recurring"` job into the queue for
+each one.
 
 ### `GET /api/queues/{queueID}/scheduled-jobs` — list
 
@@ -193,8 +203,9 @@ every definition whose `next_run_at` has passed.
 Query param: `limit` (default 50).
 
 ### `POST /api/dlq/{entryID}/replay`
-Resets the original job to `queued` with `attempts = 0` and marks the
-dead-letter entry `replayed: true`. Response is the requeued job.
+Doesn't create a new job — it takes the original one, puts it back to
+`queued` with a clean `attempts = 0`, and flags the dead-letter entry as
+`replayed: true` so you can tell it's already been retried. Returns the job.
 
 ---
 
@@ -204,8 +215,9 @@ dead-letter entry `replayed: true`. Response is the requeued job.
 ```json
 [{ "id": "...", "hostname": "...", "status": "online", "started_at": "...", "last_heartbeat_at": "...", "active_job_count": 2, "is_stale": false }]
 ```
-`is_stale` is true when `status` is `online` but the last heartbeat is older
-than `STALE_JOB_SEC` — the worker is likely dead but hasn't been reaped yet.
+Worth knowing: `is_stale` can be `true` even while `status` still says
+`online`. That combination means the worker hasn't sent a heartbeat within
+`STALE_JOB_SEC` — it's probably dead, just hasn't been formally reaped yet.
 
 ### `GET /api/workers/{workerID}/heartbeats` — heartbeat history
 Query param: `limit` (default 50).
@@ -229,4 +241,5 @@ Query param: `limit` (default 50).
 ## Health
 
 ### `GET /healthz`
-No auth. Returns `200 ok` — used for container/orchestrator liveness checks.
+No token needed. Just returns `200 ok` — this is the one a container
+orchestrator hits to decide if the API is still alive.

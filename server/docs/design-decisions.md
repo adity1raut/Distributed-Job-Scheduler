@@ -1,78 +1,100 @@
 # Design Decisions
 
-Trade-offs behind the schema and reliability mechanisms in this backend,
-kept close to the code they justify.
+A handful of choices in this backend aren't obvious from reading the code
+alone, so here's the reasoning behind them.
 
-## Job claiming: Postgres `SKIP LOCKED` vs. an external queue
+## Why Postgres claims jobs instead of a dedicated queue
 
-Workers claim jobs with `SELECT ... FOR UPDATE SKIP LOCKED` against the `jobs`
-table rather than fronting Postgres with a dedicated queue (SQS, RabbitMQ,
-Kafka). This keeps job state, retries, and application data in one
-transactional store, at the cost of not scaling to the throughput a
-purpose-built queue offers — acceptable for this system's expected volume.
-Verified under real concurrency in
-`internal/repository/job_repository_concurrency_test.go`: 50 simulated
-workers racing for 200 jobs claim each job exactly once.
+Workers grab jobs with a single `SELECT ... FOR UPDATE SKIP LOCKED` against
+the `jobs` table — Postgres itself is the queue, nothing else sits in front
+of it.
 
-## Concurrency limits: lock the queue row, not just the job row
+The upside: job state, retry history, and the rest of the application data
+all live in one transactional store, so there's nothing to keep in sync
+across two systems. The downside is throughput — a queue built for exactly
+this purpose will out-scale it eventually. For what this system needs to
+handle, that ceiling is nowhere close, so it wasn't worth the extra moving
+part.
 
-`ClaimNext` (`internal/repository/job_repository.go`) locks the `queues` row
-with `FOR UPDATE` before counting in-flight jobs and claiming — so the
-`concurrency_limit` check and the claim happen inside one serialized window
-per queue. Two workers claiming from *different* queues never contend; only
-claims on the *same* queue briefly serialize, which is exactly the limit's
-intended scope.
+This isn't just a claim on paper — `job_repository_concurrency_test.go` runs
+50 simulated workers against 200 jobs and checks that every job gets claimed
+exactly once.
 
-## job_executions separate from jobs
+## Concurrency limits lock the queue, not just the job
 
-A job overwrites its own `status` on every retry; a `job_executions` row
-never does — each attempt gets its own row with its own start/finish time and
-error. Without this split, "what happened on attempt 2" is unanswerable once
-attempt 3 starts. `job_logs` hangs off the execution, not the job, for the
-same reason.
+`ClaimNext` locks the `queues` row itself (`FOR UPDATE`) before it counts
+in-flight jobs and claims the next one. That means the concurrency check and
+the claim happen as one atomic step per queue.
 
-## Scheduler embedded in the API process, gated by an advisory lock
+The nice side effect: workers pulling from *different* queues never block
+each other. Only two workers hitting the *same* queue at the same moment
+briefly wait on one another — which is exactly what a concurrency limit is
+supposed to do anyway.
 
-The cron/recurring dispatcher (`internal/scheduler`) runs as a goroutine
-inside every `cmd/api` replica rather than as a third binary — one fewer
-thing to deploy. Each tick calls `pg_try_advisory_lock` first, so only one
-replica's tick does work per cycle; the rest no-op. This is also the
-"distributed locking" bonus item — solved with Postgres itself rather than
-adding etcd/Zookeeper for a lock needed in exactly one place.
+## Executions get their own table
 
-## Rate limiting: Redis, not in-process
+A `jobs` row overwrites its own `status` every time it's retried. If that
+were the only record kept, there'd be no way to answer "what actually
+happened on attempt 2" once attempt 3 is underway — it's just gone.
 
-Per-organization API rate limits are enforced with Redis counters
-(`internal/middleware/ratelimit.go`) rather than in-process limiters, so
-limits hold correctly across multiple API replicas. If Redis is unreachable,
-the middleware fails open (allows the request) rather than taking the API
-down over a non-critical dependency.
+`job_executions` fixes that: each attempt writes a new row with its own
+start time, finish time, and error. `job_logs` hangs off the execution
+(not the job) for the same reason — logs belong to one specific attempt.
 
-## Structured errors and keyset pagination
+## The scheduler lives inside the API, not as its own service
 
-Every handler returns `*apperr.Error` (`internal/apperr`), rendered as
-`{"error": {"code", "message", "request_id"}}` — a stable machine-readable
-`code` the frontend can switch on. List endpoints (`GET .../jobs`) paginate
-with an opaque cursor over `(created_at, id)` instead of `OFFSET`, so paging
-deep into a large jobs table stays an index seek instead of a rescan.
+Cron dispatch is just a goroutine running inside every `cmd/api` replica —
+one less binary to build, deploy, and monitor. The obvious problem with that
+is if you run three API replicas, you don't want three schedulers firing the
+same cron job three times.
 
-## Two binaries, one `internal/` package
+The fix is a Postgres advisory lock. Each tick, the goroutine calls
+`pg_try_advisory_lock` first; whichever replica gets it does the work that
+cycle, the rest just skip and try again next tick. It's a distributed lock
+with zero extra infrastructure — Postgres already happens to be sitting
+right there.
 
-`cmd/api` and `cmd/worker` are separate binaries so the API and worker fleet
-can be deployed and scaled independently, while sharing every repository and
-model through `internal/`.
+## Rate limiting through Redis, not memory
 
-## Cascade deletes, not soft-delete
+If rate limits lived in each API process's memory, three replicas would mean
+three separate quotas, and the real limit would effectively triple. Redis
+counters keep it honest across replicas.
 
-Deletes cascade down `organizations → projects → queues → jobs →
-job_executions → job_logs`, since an orphaned execution log is meaningless
-without its parent job. Trade-off: deleting a project destroys its audit
-history. For a compliance-sensitive deployment, swap the cascade for a
-`deleted_at` soft-delete on `projects`/`queues` — flagged here as the first
-thing to change, not built speculatively.
+One deliberate compromise: if Redis goes down, requests are allowed through
+rather than rejected. Losing rate limiting for a bit is a much smaller
+problem than the whole API going down because of it.
 
-## Architecture
+## Structured errors and cursor-based pagination
+
+Every error response comes back as `{"error": {"code", "message",
+"request_id"}}`, from every handler, no exceptions. The frontend can switch
+on `code` instead of trying to pattern-match error strings.
+
+Job listings paginate with a cursor over `(created_at, id)` instead of the
+usual `OFFSET`. It's a small thing until the `jobs` table has a few million
+rows — `OFFSET` gets slower the deeper you page, a cursor doesn't.
+
+## Two binaries, one shared package
+
+`cmd/api` and `cmd/worker` build separately so they can scale independently
+— more API traffic doesn't mean you need more workers, and vice versa. They
+still share every model and repository through `internal/`, so there's no
+duplicated logic between them.
+
+## Deletes cascade — for now
+
+Delete a project and everything under it goes: queues, jobs, executions,
+logs. It's the simple option, and it's correct for what this brief asks for.
+
+The honest trade-off: it also deletes the audit trail along with the data.
+If this were going into a setting where you need to keep records after
+someone deletes a project — compliance, billing disputes, that kind of thing
+— the fix is a `deleted_at` column instead of a real delete. Flagging it here
+rather than building it, since nothing in the brief calls for it yet.
+
+## How it all fits together
 
 ![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; a fleet of workers polls PostgreSQL to claim jobs with SELECT FOR UPDATE SKIP LOCKED and sends heartbeats.](images/architecture.png)
 
-Full component breakdown and the job lifecycle state machine: [architecture.md](architecture.md).
+The full component breakdown and the job lifecycle state machine live in
+[architecture.md](architecture.md).

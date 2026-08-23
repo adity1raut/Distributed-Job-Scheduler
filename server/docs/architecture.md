@@ -1,34 +1,41 @@
 # Architecture
 
-Two independent Go binaries, coordinating entirely through PostgreSQL —
-no message broker, no external queue.
+Two Go binaries, and everything they need to agree on lives in one place:
+PostgreSQL. No message broker, no external queue sitting between them.
 
 ![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; a fleet of workers polls PostgreSQL to claim jobs with SELECT FOR UPDATE SKIP LOCKED and sends heartbeats.](images/architecture.png)
 
-## Components
+## What each piece actually does
 
-- **`cmd/api`** — stateless REST server: auth, project/queue/job CRUD, dashboard
-  reads. Scales horizontally behind a load balancer; any replica can serve any
-  request. CORS is locked to `CORS_ALLOWED_ORIGINS` (the dashboard's own
-  origin by default) rather than left open.
-- **scheduler** — a goroutine inside every `cmd/api` replica. Ticks every
-  `SCHEDULER_TICK_SEC` seconds, but calls `pg_try_advisory_lock` first — only
-  one replica's tick does work per cycle, so a cron job never fires twice just
-  because you scaled the API out. The same tick reaps jobs stuck in
-  `claimed`/`running` whose worker has gone quiet.
-- **`cmd/worker`** — polls every unpaused queue, atomically claims the next
-  runnable job, executes it, sends heartbeats, and on `SIGTERM` stops claiming
-  new work but lets in-flight jobs finish before exiting.
-- **PostgreSQL** — the only stateful dependency for correctness. Job claiming,
-  concurrency limits, retries, and the advisory lock all live here — see
-  [design-decisions.md](design-decisions.md) for why.
-- **Redis** — purely for cross-replica rate-limit counters. If it's
-  unreachable the rate limiter fails open (allows the request) rather than
-  taking the API down over a non-critical dependency.
+**`cmd/api`** is the REST server — auth, project/queue/job CRUD, the data
+the dashboard reads. It's stateless, so it scales behind a load balancer
+with no coordination needed between replicas. CORS is locked down to
+`CORS_ALLOWED_ORIGINS` rather than left wide open.
+
+**The scheduler** isn't a separate service — it's a goroutine running
+inside every `cmd/api` replica. It wakes up every `SCHEDULER_TICK_SEC`
+seconds, grabs a Postgres advisory lock first, and only does real work if
+it gets the lock. That's what stops a cron job from firing three times just
+because you happen to be running three API replicas. The same tick also
+reaps jobs stuck in `claimed` or `running` whose worker has gone quiet.
+
+**`cmd/worker`** is the other binary. It polls every queue that isn't
+paused, claims the next runnable job atomically, runs it, and sends
+heartbeats while it works. On `SIGTERM` it stops picking up new jobs but
+lets whatever's already running finish before it exits.
+
+**PostgreSQL** is the only piece of this system that actually has to stay
+up for correctness — claiming, concurrency limits, retries, the advisory
+lock, all of it lives here. Why that's the design instead of a dedicated
+queue is explained in [design-decisions.md](design-decisions.md).
+
+**Redis** does one job: cross-replica rate-limit counters. If it goes down,
+the rate limiter just lets requests through instead of taking the API down
+with it — losing a soft limit for a while beats an outage.
 
 ## Job lifecycle
 
 ![Job lifecycle state diagram: a job starts at Scheduled or Queued, moves to Claimed via an atomic SKIP LOCKED select, then Running; from Running it either completes, retries back to Queued with a backoff delay, or moves to Dead once retries are exhausted; a Claimed job with no heartbeat is reaped back to Queued.](images/job-scheduling.png)
 
-See [er-diagram.md](er-diagram.md) for the schema behind these states and
-[api.md](api.md) for the REST surface that drives them.
+The schema behind these states is in [er-diagram.md](er-diagram.md); the
+REST endpoints that drive them are in [api.md](api.md).
