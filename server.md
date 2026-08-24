@@ -1,13 +1,13 @@
 # Job Scheduler API & Worker
 
-Go backend for the [Distributed Job Scheduler](../Readme.md): two
+Go backend for the [Distributed Job Scheduler](Readme.md): two
 independent binaries (`cmd/api`, `cmd/worker`) sharing a common
 `internal/` package, backed by PostgreSQL (`SELECT ... FOR UPDATE SKIP
-LOCKED` job claiming) and Redis (rate limiting).
+LOCKED` job claiming) and Redis (rate limiting). Lives under `server/`.
 
 For setup and running instructions, see the root
-[`../Readme.md`](../Readme.md) — [Setup](../Readme.md#setup) and
-[Rolling Back Migrations](../Readme.md#rolling-back-migrations) live
+[`Readme.md`](Readme.md) — [Setup](Readme.md#setup) and
+[Rolling Back Migrations](Readme.md#rolling-back-migrations) live
 there since the API, worker, and frontend are started together.
 
 ## Structure
@@ -36,6 +36,8 @@ server/
 
 ## Testing
 
+From `server/`:
+
 ```bash
 go test ./...
 ```
@@ -58,7 +60,7 @@ TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobscheduler_test
 
 | Doc | Covers |
 |---|---|
-| [`docs/architecture.md`](docs/architecture.md) | Component diagram, job lifecycle state machine |
-| [`docs/er-diagram.md`](docs/er-diagram.md) | Full ER diagram, keys, indexes, cascade behavior |
-| [`docs/api.md`](docs/api.md) | Every REST endpoint: request/response shapes, error codes, pagination |
-| [`docs/design-decisions.md`](docs/design-decisions.md) | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
+| [`server/docs/architecture.md`](server/docs/architecture.md) | Component diagram, job lifecycle state machine |
+| [`server/docs/er-diagram.md`](server/docs/er-diagram.md) | Full ER diagram, keys, indexes, cascade behavior |
+| [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint: request/response shapes, error codes, pagination |
+| [`server/docs/design-decisions.md`](server/docs/design-decisions.md) | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |

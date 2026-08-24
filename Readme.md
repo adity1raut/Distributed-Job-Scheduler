@@ -44,8 +44,8 @@ The job lifecycle state machine lives in
 ## Project Structure
 
 ```
-server/                      # Go API + worker, see server/README.md
-ui-interface/                # React dashboard (Vite), see ui-interface/README.md
+server/                      # Go API + worker, see server.md
+ui-interface/                # React dashboard (Vite), see ui_interface.md
 ```
 
 ## Setup
@@ -129,7 +129,7 @@ From `server/`:
 go test ./...
 ```
 
-See [`server/README.md`](server/README.md#testing) for what runs
+See [`server.md`](server.md#testing) for what runs
 unconditionally vs. what needs a real Postgres/Redis, and how to point
 tests at a throwaway database.
 
@@ -151,10 +151,10 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 
 | Doc | Covers |
 |---|---|
-| [`server/README.md`](server/README.md) | Backend structure, `cmd/`/`internal/` breakdown |
+| [`server.md`](server.md) | Backend structure, `cmd/`/`internal/` breakdown |
 | [`server/docs/architecture.md`](server/docs/architecture.md) | Component diagram, job lifecycle state machine |
 | [`server/docs/er-diagram.md`](server/docs/er-diagram.md) | Full ER diagram, keys, indexes, cascade behavior |
 | [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint: request/response shapes, error codes, pagination |
 | [`server/docs/design-decisions.md`](server/docs/design-decisions.md) | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
-| [`ui-interface/README.md`](ui-interface/README.md) | Frontend feature list, structure, env vars |
-| [`WORKING.md`](WORKING.md) | How the system works end to end, plus a click-by-click local verification script |
+| [`ui_interface.md`](ui_interface.md) | Frontend feature list, structure, env vars |
+| [`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md) | Registering an org, starting a worker, creating a project/queue, all four job types, cron schedules, concurrency |

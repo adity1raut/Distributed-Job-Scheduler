@@ -1,8 +1,9 @@
 # Job Scheduler Dashboard
 
-React dashboard for the [Distributed Job Scheduler](../Readme.md). Manage
+React dashboard for the [Distributed Job Scheduler](Readme.md). Manage
 projects and queues, submit and inspect jobs, watch execution logs, and
-monitor the worker fleet, all live against the Go API.
+monitor the worker fleet, all live against the Go API. Lives under
+`ui-interface/`.
 
 Every interactive control (toasts, confirm dialogs, dropdowns) is
 hand-built for this app. There's no UI library dependency beyond React
@@ -22,22 +23,34 @@ itself, `react-router-dom` for routing, and `lucide-react` for icons.
 | **Workers** | Fleet status (online/stale), heartbeat history |
 | **Overview** | Org-wide stat cards, an hourly throughput chart, a status-filterable Recent Jobs feed, every project grouped with its queues, and a Worker Pool table. The landing page you don't need to drill into Projects or Workers to read. |
 
-Live views poll the API every few seconds (see `src/hooks/usePolling.js`).
-No WebSocket dependency; matches the brief's "polling or WebSockets"
-option.
+Live views poll the API every few seconds (see
+`ui-interface/src/hooks/usePolling.js`). No WebSocket dependency;
+matches the brief's "polling or WebSockets" option.
 
 ## Setup
 
 ```bash
+cd ui-interface
 npm install
 cp .env.example .env   # set VITE_API_URL if the API isn't on localhost:8080
 npm run dev
 ```
 
-Requires the backend running (see [`../Readme.md`](../Readme.md)). The
-dashboard has nothing to render without it.
+Open the URL Vite prints (default `http://localhost:5173`). Requires
+Postgres, Redis, and the API already running — see the root
+[`Readme.md`](Readme.md#setup) for that. The dashboard has nothing
+to render without a running API.
+
+That's enough to load the app, but not enough to see a job actually run —
+for registering an org, starting a `cmd/worker` for it, creating your
+first project/queue, submitting each of the four job types and watching
+how they perform (retries, dead-lettering, cron schedules, concurrency),
+and running more than one org at once, see
+[`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md).
 
 ## Testing
+
+From `ui-interface/`:
 
 ```bash
 npm run lint
@@ -71,7 +84,9 @@ something to click, not just read.
 For the underlying job-scheduling behavior itself (delays, concurrency
 limits, retries, dead-lettering, cron dispatch) rather than the UI chrome,
 follow the full click-by-click script in
-[`../WORKING.md`](../WORKING.md#part-2--verifying-it-all-yourself-locally-in-the-ui).
+[`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md),
+backed by the mechanics in
+[`server/docs/architecture.md`](server/docs/architecture.md).
 
 ## Scripts
 
@@ -85,7 +100,7 @@ follow the full click-by-click script in
 ## Structure
 
 ```
-src/
+ui-interface/src/
 ├── api/            # One file per resource: thin fetch wrappers over the REST API
 │                     (jobs, queues, dlq, scheduledJobs, workers, dashboard, projects, auth)
 ├── components/     # Shared UI
@@ -119,12 +134,18 @@ src/
 |---|---|---|
 | `VITE_API_URL` | `http://localhost:8080` | Base URL the frontend calls for every API request |
 
+## Documentation
+
+| Doc | Covers |
+|---|---|
+| [`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md) | Registering an org, starting a worker, creating a project/queue, all four job types and how they perform, cron schedules, concurrency, running more than one org at once |
+
 ## Notes
 
 - **Auth.** The JWT and user object live in `localStorage`. A 401 from
-  any request clears them (see `src/api/client.js`), so an expired token
-  bounces you back to `/login` on the next fetch rather than silently
-  failing.
+  any request clears them (see `ui-interface/src/api/client.js`), so an
+  expired token bounces you back to `/login` on the next fetch rather
+  than silently failing.
 - **Pagination.** The job explorer follows the API's keyset cursor.
   "Next" pushes the returned `next_cursor`; "Previous" pops a
   client-side stack. Only the first page auto-refreshes; a paged-forward
@@ -132,8 +153,8 @@ src/
 - **Toasts.** Every mutation (create/delete/pause/resume/submit/retry/replay)
   reports success or failure through the custom toast system
   (`lib/toast.js` + `ToastHost.jsx`), styled from the same CSS custom
-  properties as the rest of the app (`src/index.css`) so it matches both
-  themes.
+  properties as the rest of the app (`ui-interface/src/index.css`) so it
+  matches both themes.
 - **Confirm dialogs.** Destructive actions (deleting a project or queue)
   go through `lib/confirm.js` + `ConfirmHost.jsx` instead of the
   browser's native `window.confirm()`, so they match the app's theme and
@@ -144,13 +165,14 @@ src/
   workers/throughput/project lists on their own intervals), each a
   separate request against the API's per-org rate limiter
   (`RATE_LIMIT_PER_MIN`, default 120/min, see
-  [`server/README.md`](../server/README.md#testing)). The limiter used to
-  reset its 60s window on *every* request instead of only the first one
-  in a window, so continuous polling kept pushing the expiry forward and
-  the count never reset — real dashboard usage would get wrongly stuck
-  on `429 rate limit exceeded` after a couple of minutes. That's fixed
-  server-side (`internal/middleware/ratelimit.go`); with the fix, leaving
-  the dashboard open and polling continuously across multiple tabs/pages
-  no longer trips a false rate limit. The frontend itself needed no
-  change — a `429` just surfaces through the normal `error` state /
-  toast path in `src/api/client.js`, same as any other API error.
+  [`server.md`](server.md#testing)). The limiter used to reset its 60s
+  window on *every* request instead of only the first one in a window,
+  so continuous polling kept pushing the expiry forward and the count
+  never reset — real dashboard usage would get wrongly stuck on `429
+  rate limit exceeded` after a couple of minutes. That's fixed
+  server-side (`server/internal/middleware/ratelimit.go`); with the fix,
+  leaving the dashboard open and polling continuously across multiple
+  tabs/pages no longer trips a false rate limit. The frontend itself
+  needed no change — a `429` just surfaces through the normal `error`
+  state / toast path in `ui-interface/src/api/client.js`, same as any
+  other API error.
