@@ -265,6 +265,14 @@ Priority also lives in this same query: `ORDER BY priority DESC, run_at
 ASC` means a higher-priority job always jumps the queue ahead of an
 older lower-priority one, but never ahead of one that isn't due yet.
 
+**c) Scaling is per-organization, not global.** A worker now belongs to
+exactly one org (`WORKER_ORG_ID`, required at startup) and only discovers
+and claims that org's queues — see
+[design-decisions.md](server/docs/design-decisions.md#workers-belong-to-exactly-one-organization).
+So "add more workers" really means "add more workers *for the org whose
+throughput you're trying to raise*" — a busy org doesn't silently borrow
+capacity from, or steal capacity from, anyone else's fleet.
+
 ### 1.11 Other cross-cutting behaviors
 
 - **Auth:** `POST /api/auth/register` creates a brand-new organization and
@@ -281,6 +289,16 @@ older lower-priority one, but never ahead of one that isn't due yet.
 - **Cascading deletes:** deleting a project deletes its queues, jobs,
   executions, and logs. Intentional trade-off, documented in
   [design-decisions.md](server/docs/design-decisions.md#deletes-cascade--for-now).
+- **Role-based access control:** `DELETE /projects/{id}` and
+  `DELETE /queues/{id}` require `owner` or `admin` — a `member` gets a real
+  `403 FORBIDDEN` via `middleware.RequireRole`. There's no invite endpoint
+  yet, so every account created through `/auth/register` is `owner`; see
+  [design-decisions.md](server/docs/design-decisions.md#role-based-access-control-is-enforced-but-not-yet-reachable)
+  for the honest gap.
+- **Throughput visualization:** `GET /api/dashboard/throughput` buckets
+  completed/failed jobs by hour for the last 24h (zero-filled, so the chart
+  always has a continuous strip), rendered as a stacked bar chart on the
+  Overview page instead of just the two rolled-up 24h counters.
 - **The demo job handler:** what a job actually "does" when it runs is
   [`RunPayload`](server/internal/service/executor.go) — it reads three
   optional fields out of the job's JSON payload:
@@ -345,21 +363,17 @@ migrate -path migrations -database "$DATABASE_URL" up
 > DATABASE_URL=postgres://postgres:postgres@localhost:5432/jobscheduler?sslmode=disable`
 > first, or pass the same value inline to `migrate -database`.
 
-### 2.2 Start the API, two workers, and the frontend
+### 2.2 Start the API and the frontend
 
-Four separate terminals, all from the paths shown:
+Two terminals, from the paths shown. Workers come after the next step —
+a worker now belongs to exactly one organization, so it needs an org ID
+that doesn't exist until you've registered one.
 
 ```bash
 # Terminal 1 — server/
 go run ./cmd/api
 
-# Terminal 2 — server/   (worker A)
-go run ./cmd/worker
-
-# Terminal 3 — server/   (worker B — a second instance = horizontal scaling)
-go run ./cmd/worker
-
-# Terminal 4 — ui-interface/
+# Terminal 2 — ui-interface/
 cp .env.example .env   # VITE_API_URL=http://localhost:8080 is already correct
 npm install
 npm run dev
@@ -367,19 +381,29 @@ npm run dev
 
 Open the URL Vite prints (typically `http://localhost:5173`).
 
-Running **two** worker terminals from the start means every test below
-that touches concurrency has real horizontal scaling to observe, not just
-a single process.
-
-### 2.3 Register and land on the dashboard
+### 2.3 Register, grab your org ID, then start your workers
 
 1. Go to `/register`. Fill in an organization name, an email, and a
    password (8+ characters) — submitting logs you straight in and lands on
    the **Overview** page.
 2. Overview will show all-zero metric cards (`Projects`, `Queues`, `Online
-   workers`, `Queued jobs`, etc.) — that's expected, there's nothing yet.
-   `Online workers` should already read **2** — confirmation both worker
-   processes registered and are heartbeating even with no jobs to run.
+   workers`, `Queued jobs`, etc.) — that's expected, there's nothing yet,
+   including workers.
+3. Grab your org ID: open dev tools → Application/Storage → Local Storage
+   → the `user` key → copy `org_id`.
+4. Start two worker terminals with that ID, so every test below that
+   touches concurrency has real horizontal scaling to observe, not just a
+   single process:
+
+   ```bash
+   # Terminal 3 — server/   (worker A)
+   WORKER_ORG_ID=<your-org-id> go run ./cmd/worker
+
+   # Terminal 4 — server/   (worker B — a second instance = horizontal scaling)
+   WORKER_ORG_ID=<your-org-id> go run ./cmd/worker
+   ```
+5. Refresh Overview — `Online workers` should now read **2**, and the new
+   **Worker pool** panel should list both by hostname.
 
 ### 2.4 Create a project and a queue
 
@@ -430,9 +454,9 @@ This is the most convincing one to actually watch:
    up to 2 running concurrently (bounded by having 2 worker processes ×
    `WORKER_CONCURRENCY=10` each — plenty of headroom now, so the queue's
    own limit of 5 is what's actually visible). Start a **third** worker
-   terminal (`go run ./cmd/worker` again) mid-run and you'll see the
-   running count able to climb further on the next batch — a live
-   demonstration of horizontal scaling adding throughput.
+   terminal (`WORKER_ORG_ID=<your-org-id> go run ./cmd/worker` again) mid-run
+   and you'll see the running count able to climb further on the next
+   batch — a live demonstration of horizontal scaling adding throughput.
 5. Toggle **Pause queue**: submit one more job, confirm it sits `queued`
    forever and never claims (workers actively skip paused queues — see
    `activeQueueIDs` in [worker/main.go:130-146](server/cmd/worker/main.go#L130-L146)).
@@ -491,7 +515,34 @@ real numbers, not zeros. This confirms
 `GET /api/dashboard/overview` is aggregating live data across every project
 in your org, not just the one you were looking at.
 
-### 2.12 If something doesn't behave as described
+The **throughput chart** just below the stat cards should show a bar over
+the current hour with a green (completed) segment and, if you ran §2.8, a
+red (failed) segment stacked on top — hover any bar to see the exact
+completed/failed counts for that hour.
+
+### 2.12 Verify worker org-scoping and role-based access
+
+1. Register a **second** organization (a different email, different org
+   name) in a private/incognito window, without starting any worker for
+   it. Its **Workers** page and Overview's Worker Pool should both be
+   empty — confirming workers from your first org aren't visible here,
+   even though the same Postgres instance and the same physical machine
+   are running both.
+2. Back in your original org, try deleting a project or queue as normal —
+   it works, because the account that registered an org is always its
+   `owner`. There's no invite flow to create a `member` account through the
+   UI yet (see `design-decisions.md`), so the 403 path for a non-owner is
+   covered by an automated test (`TestRouter_DeleteProject_RoleGate` in
+   `server/internal/handler/router_test.go`) rather than something
+   click-through-able today — run it with:
+   ```bash
+   TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobscheduler?sslmode=disable" \
+     go test ./internal/handler/... -run TestRouter_DeleteProject_RoleGate -v
+   ```
+   (point `TEST_DATABASE_URL` at a throwaway database if you don't want
+   test fixtures landing in your real one).
+
+### 2.13 If something doesn't behave as described
 
 | Symptom | Likely cause |
 |---|---|

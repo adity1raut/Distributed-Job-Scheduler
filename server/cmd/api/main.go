@@ -52,7 +52,7 @@ func main() {
 	authSvc := service.NewAuthService(orgRepo, userRepo, policyRepo, cfg.JWTSecret, time.Duration(cfg.JWTExpiryHours)*time.Hour)
 	projectSvc := service.NewProjectService(projectRepo)
 	queueSvc := service.NewQueueService(queueRepo, projectRepo, policyRepo)
-	jobSvc := service.NewJobService(jobRepo, queueRepo, execRepo, logRepo)
+	jobSvc := service.NewJobService(jobRepo, queueRepo, execRepo, logRepo, policyRepo)
 	scheduledJobSvc := service.NewScheduledJobService(scheduledJobRepo, queueRepo)
 	workerSvc := service.NewWorkerService(workerRepo, cfg.StaleJobSec)
 	dlqSvc := service.NewDLQService(dlqRepo, jobRepo)

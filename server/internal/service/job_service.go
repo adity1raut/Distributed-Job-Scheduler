@@ -17,11 +17,17 @@ type JobService struct {
 	queues     *repository.QueueRepository
 	executions *repository.JobExecutionRepository
 	logs       *repository.JobLogRepository
+	policies   *repository.RetryPolicyRepository
 }
 
-func NewJobService(jobs *repository.JobRepository, queues *repository.QueueRepository, executions *repository.JobExecutionRepository, logs *repository.JobLogRepository) *JobService {
-	return &JobService{jobs: jobs, queues: queues, executions: executions, logs: logs}
+func NewJobService(jobs *repository.JobRepository, queues *repository.QueueRepository, executions *repository.JobExecutionRepository, logs *repository.JobLogRepository, policies *repository.RetryPolicyRepository) *JobService {
+	return &JobService{jobs: jobs, queues: queues, executions: executions, logs: logs, policies: policies}
 }
+
+// fallbackMaxAttempts mirrors ExecutionService's fallbackRetryPolicy — used
+// only if the resolved policy can't be looked up, so job creation never
+// fails outright over a policy read hiccup.
+const fallbackMaxAttempts = 5
 
 type SubmitJobInput struct {
 	Type           models.JobType
@@ -39,7 +45,8 @@ type SubmitJobInput struct {
 // the scheduler is what turns a due cron fire into a job row via this same
 // queue.
 func (s *JobService) Submit(ctx context.Context, queueID uuid.UUID, in SubmitJobInput) ([]models.Job, error) {
-	if _, err := s.queues.GetByID(ctx, queueID); err != nil {
+	queue, err := s.queues.GetByID(ctx, queueID)
+	if err != nil {
 		if err == repository.ErrNotFound {
 			return nil, apperr.NotFound("queue")
 		}
@@ -47,6 +54,19 @@ func (s *JobService) Submit(ctx context.Context, queueID uuid.UUID, in SubmitJob
 	}
 	if len(in.Payload) == 0 {
 		in.Payload = json.RawMessage(`{}`)
+	}
+
+	// The job's max_attempts must reflect whichever policy will actually
+	// govern it — a per-job override if given, else the queue's own policy
+	// — so the UI's "attempts / max_attempts" and the point it dead-letters
+	// always agree, even when someone isn't using the org's default policy.
+	maxAttempts := fallbackMaxAttempts
+	resolvePolicyID := queue.RetryPolicyID
+	if in.RetryPolicyID != nil {
+		resolvePolicyID = *in.RetryPolicyID
+	}
+	if policy, err := s.policies.GetByIDInternal(ctx, resolvePolicyID); err == nil {
+		maxAttempts = policy.MaxAttempts
 	}
 
 	runAt := time.Now()
@@ -95,7 +115,7 @@ func (s *JobService) Submit(ctx context.Context, queueID uuid.UUID, in SubmitJob
 			Payload:        in.Payload,
 			IdempotencyKey: key,
 			Priority:       in.Priority,
-			MaxAttempts:    5,
+			MaxAttempts:    maxAttempts,
 			BatchID:        batchID,
 			RunAt:          runAt,
 		})

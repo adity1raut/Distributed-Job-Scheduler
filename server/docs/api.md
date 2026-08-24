@@ -90,6 +90,7 @@ without configuring one yourself first.
 ### `GET /api/projects/{projectID}` — get one
 
 ### `DELETE /api/projects/{projectID}` — delete (cascades to its queues, jobs, executions, logs)
+Requires `owner` or `admin` — a `member` gets `403 FORBIDDEN`.
 
 ### `POST /api/projects/{projectID}/queues` — create a queue under this project
 ```json
@@ -113,6 +114,7 @@ need to look one up first if you don't care about a custom retry strategy yet.
 All fields optional; only the ones present are changed.
 
 ### `DELETE /api/queues/{queueID}` — delete (cascades to its jobs)
+Requires `owner` or `admin` — a `member` gets `403 FORBIDDEN`.
 
 ### `POST /api/queues/{queueID}/pause` / `POST /api/queues/{queueID}/resume`
 Pausing just stops new claims — nothing gets killed. Whatever's already
@@ -252,6 +254,19 @@ params: `limit` (default 10), `status` (one of `scheduled | queued | claimed
     "attempts": 1, "max_attempts": 5,
     "run_at": "...", "created_at": "...", "updated_at": "..."
   }
+]
+```
+
+### `GET /api/dashboard/throughput`
+One bucket per hour for the last 24 hours, oldest first, zero-filled for
+hours with no finished jobs — the time-series version of
+`completed_jobs_24h` / `failed_jobs_24h` from the overview, for actually
+visualizing throughput rather than a single rolled-up count.
+
+```json
+[
+  { "hour": "2026-08-23T14:00:00Z", "completed": 12, "failed": 1 },
+  { "hour": "2026-08-23T15:00:00Z", "completed": 8, "failed": 0 }
 ]
 ```
 

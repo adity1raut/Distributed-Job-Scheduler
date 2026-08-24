@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_workers_org;
+ALTER TABLE workers DROP COLUMN IF EXISTS org_id;

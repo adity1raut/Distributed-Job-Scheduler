@@ -17,10 +17,10 @@ func NewWorkerRepository(pool *pgxpool.Pool) *WorkerRepository {
 	return &WorkerRepository{pool: pool}
 }
 
-func (r *WorkerRepository) Register(ctx context.Context, hostname string) (*models.Worker, error) {
+func (r *WorkerRepository) Register(ctx context.Context, hostname string, orgID uuid.UUID) (*models.Worker, error) {
 	rows, err := r.pool.Query(ctx,
-		`INSERT INTO workers (hostname, status) VALUES ($1, 'online')
-		 RETURNING id, hostname, status, started_at`, hostname)
+		`INSERT INTO workers (hostname, org_id, status) VALUES ($1, $2, 'online')
+		 RETURNING id, org_id, hostname, status, started_at`, hostname, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -39,15 +39,16 @@ func (r *WorkerRepository) Heartbeat(ctx context.Context, workerID uuid.UUID, ac
 	return err
 }
 
-// ListWithStatus returns every worker joined with its most recent heartbeat;
-// a worker is "stale" if that heartbeat is older than staleSec (or missing).
-func (r *WorkerRepository) ListWithStatus(ctx context.Context, staleSec int) ([]models.WorkerWithStatus, error) {
+// ListWithStatus returns every worker belonging to orgID, joined with its
+// most recent heartbeat; a worker is "stale" if that heartbeat is older
+// than staleSec (or missing).
+func (r *WorkerRepository) ListWithStatus(ctx context.Context, orgID uuid.UUID, staleSec int) ([]models.WorkerWithStatus, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			w.id, w.hostname, w.status, w.started_at,
 			hb.reported_at AS last_heartbeat_at,
 			hb.active_job_count,
-			(hb.reported_at IS NULL OR hb.reported_at < now() - make_interval(secs => $1)) AS is_stale
+			(hb.reported_at IS NULL OR hb.reported_at < now() - make_interval(secs => $2)) AS is_stale
 		FROM workers w
 		LEFT JOIN LATERAL (
 			SELECT reported_at, active_job_count
@@ -56,18 +57,24 @@ func (r *WorkerRepository) ListWithStatus(ctx context.Context, staleSec int) ([]
 			ORDER BY reported_at DESC
 			LIMIT 1
 		) hb ON true
-		ORDER BY w.started_at DESC`, staleSec)
+		WHERE w.org_id = $1
+		ORDER BY w.started_at DESC`, orgID, staleSec)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, pgx.RowToStructByName[models.WorkerWithStatus])
 }
 
-func (r *WorkerRepository) HeartbeatHistory(ctx context.Context, workerID uuid.UUID, limit int) ([]models.WorkerHeartbeat, error) {
+// HeartbeatHistory returns heartbeats for workerID, scoped to orgID so one
+// org can't page through another org's worker by guessing its UUID.
+func (r *WorkerRepository) HeartbeatHistory(ctx context.Context, workerID, orgID uuid.UUID, limit int) ([]models.WorkerHeartbeat, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, worker_id, reported_at, active_job_count
-		 FROM worker_heartbeats WHERE worker_id = $1 ORDER BY reported_at DESC LIMIT $2`,
-		workerID, limit)
+		`SELECT wh.id, wh.worker_id, wh.reported_at, wh.active_job_count
+		 FROM worker_heartbeats wh
+		 JOIN workers w ON w.id = wh.worker_id
+		 WHERE wh.worker_id = $1 AND w.org_id = $2
+		 ORDER BY wh.reported_at DESC LIMIT $3`,
+		workerID, orgID, limit)
 	if err != nil {
 		return nil, err
 	}

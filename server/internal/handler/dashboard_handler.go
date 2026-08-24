@@ -37,3 +37,13 @@ func (h *DashboardHandler) RecentJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusOK, jobs)
 }
+
+func (h *DashboardHandler) Throughput(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.OrgIDFromContext(r.Context())
+	buckets, err := h.dashboard.Throughput(r.Context(), orgID)
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, buckets)
+}

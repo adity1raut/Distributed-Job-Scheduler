@@ -115,9 +115,16 @@ func (s *Scheduler) dispatchDue(ctx context.Context) {
 			continue
 		}
 
+		// max_attempts is read from the queue's current retry policy in the
+		// same statement, not left to the column default — otherwise a
+		// recurring job's displayed "attempts / max_attempts" (and the
+		// point it actually dead-letters) would silently disagree with
+		// whatever policy governs it, the same bug fixed in JobService.Submit.
 		_, err = tx.Exec(ctx, `
-			INSERT INTO jobs (queue_id, scheduled_job_id, type, payload, run_at)
-			VALUES ($1, $2, 'recurring', $3, now())`,
+			INSERT INTO jobs (queue_id, scheduled_job_id, type, payload, run_at, max_attempts)
+			SELECT $1, $2, 'recurring', $3, now(), rp.max_attempts
+			FROM queues q JOIN retry_policies rp ON rp.id = q.retry_policy_id
+			WHERE q.id = $1`,
 			sj.QueueID, sj.ID, sj.PayloadTemplate)
 		if err != nil {
 			slog.Error("dispatch scheduled job failed", "scheduled_job_id", sj.ID, "error", err)

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/adity1raut/job-scheduler/internal/httpx"
+	"github.com/adity1raut/job-scheduler/internal/middleware"
 	"github.com/adity1raut/job-scheduler/internal/service"
 )
 
@@ -16,7 +17,8 @@ func NewWorkerHandler(workers *service.WorkerService) *WorkerHandler {
 }
 
 func (h *WorkerHandler) List(w http.ResponseWriter, r *http.Request) {
-	fleet, err := h.workers.Fleet(r.Context())
+	orgID := middleware.OrgIDFromContext(r.Context())
+	fleet, err := h.workers.Fleet(r.Context(), orgID)
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -30,7 +32,8 @@ func (h *WorkerHandler) Heartbeats(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	beats, err := h.workers.Heartbeats(r.Context(), id, queryInt(r, "limit", 50))
+	orgID := middleware.OrgIDFromContext(r.Context())
+	beats, err := h.workers.Heartbeats(r.Context(), id, orgID, queryInt(r, "limit", 50))
 	if err != nil {
 		writeErr(w, r, err)
 		return

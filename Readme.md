@@ -33,11 +33,41 @@ A production-inspired distributed job scheduling platform for reliably executing
 Two independent Go binaries sharing a common `internal/` package:
 
 - **`cmd/api`** — REST API server (auth, projects, queues, jobs, dashboard data)
-- **`cmd/worker`** — polls queues, atomically claims jobs (`SELECT ... FOR UPDATE SKIP LOCKED`), executes them concurrently, sends heartbeats, and shuts down gracefully on `SIGTERM`
+- **`cmd/worker`** — belongs to exactly one org (`WORKER_ORG_ID`), polls that org's queues, atomically claims jobs (`SELECT ... FOR UPDATE SKIP LOCKED`), executes them concurrently, sends heartbeats, and shuts down gracefully on `SIGTERM`
 
-This split mirrors a real deployment where the API and worker fleet scale independently.
+This split mirrors a real deployment where the API and each org's worker fleet scale independently.
 
-![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; a fleet of workers polls PostgreSQL to claim jobs with SELECT FOR UPDATE SKIP LOCKED and sends heartbeats.](server/docs/images/architecture.png)
+```mermaid
+flowchart TB
+    Dashboard["React Dashboard<br/>Browser client"]
+
+    subgraph API["API — N replicas"]
+        Server["API Server<br/>Go · chi router · JWT · stateless"]
+        Scheduler["Scheduler goroutine<br/>ticks · cron dispatch · reaps stale claims"]
+    end
+
+    Redis[("Redis<br/>rate-limit counters only")]
+    Postgres[("PostgreSQL<br/>single source of truth")]
+
+    subgraph WorkersA["Workers — Org A (WORKER_ORG_ID=A)"]
+        WorkerA["Worker<br/>polls · claims · executes · heartbeats"]
+    end
+
+    subgraph WorkersB["Workers — Org B (WORKER_ORG_ID=B)"]
+        WorkerB["Worker<br/>polls · claims · executes · heartbeats"]
+    end
+
+    Dashboard -- "HTTPS + JWT" --> Server
+    Dashboard -. "poll every 5s" .-> Server
+    Server -- "check / incr rate limit" --> Redis
+    Server -- "reads / writes" --> Postgres
+    Scheduler -- "pg_try_advisory_lock, dispatch due scheduled_jobs" --> Postgres
+
+    WorkerA -- "poll & claim — SELECT ... FOR UPDATE SKIP LOCKED, org A's queues only" --> Postgres
+    WorkerA -- "heartbeat every 10s" --> Postgres
+    WorkerB -- "poll & claim — org B's queues only" --> Postgres
+    WorkerB -- "heartbeat every 10s" --> Postgres
+```
 
 The job lifecycle state machine lives in
 [`server/docs/architecture.md`](server/docs/architecture.md).
@@ -112,21 +142,31 @@ From `server/`:
 go run ./cmd/api
 ```
 
-### 7. Run the worker (separate terminal, run multiple instances to test concurrency)
-
-From `server/`:
-
-```bash
-go run ./cmd/worker
-```
-
-### 8. Run the frontend
+### 7. Run the frontend
 
 ```bash
 cd ui-interface
 npm install
 npm run dev
 ```
+
+### 8. Register an account and grab your org ID
+
+Open the frontend, register an org, and copy the `org_id` from the
+response (visible in your browser's dev tools — Network tab on the
+register call, or Local Storage under the `user` key). A worker belongs to
+exactly one organization, so this ID is required before it can start.
+
+### 9. Run the worker (separate terminal, run multiple instances to test concurrency)
+
+From `server/`, with the org ID from the previous step:
+
+```bash
+WORKER_ORG_ID=<your-org-id> go run ./cmd/worker
+```
+
+Or set `WORKER_ORG_ID` in `server/.env` instead of passing it inline —
+either way, `cmd/worker` refuses to start without it.
 
 ## Testing
 
@@ -136,6 +176,20 @@ From `server/`:
 go test ./...
 ```
 
+This runs the pure unit tests unconditionally, but every test that needs a
+real Postgres (concurrency, claiming, reaping, the full HTTP router) skips
+itself unless `TEST_DATABASE_URL` is set — and the HTTP-layer tests also
+need a reachable Redis (`TEST_REDIS_ADDR`, default `localhost:6379`), since
+the real rate-limit middleware sits in that router too. Point it at a
+throwaway database, not the one you're using for manual testing — these
+tests don't clean up after themselves:
+
+```bash
+docker exec js-postgres createdb -U postgres jobscheduler_test
+migrate -path migrations -database "postgres://postgres:postgres@localhost:5432/jobscheduler_test?sslmode=disable" up
+TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobscheduler_test?sslmode=disable" go test ./...
+```
+
 | Test | Proves |
 |---|---|
 | `TestClaimNext_NoDuplicateClaims` | 50 workers racing for 200 jobs never double-claim |
@@ -143,8 +197,10 @@ go test ./...
 | `TestJobRepository_ClaimNext_RespectsPause` | A paused queue yields no claims |
 | `TestJobRepository_ClaimNext_RespectsConcurrencyLimit` | `concurrency_limit` is enforced, then releases once a job completes |
 | `TestJobRepository_ReapStale_*` | A claim with no recent heartbeat is requeued; one with a live heartbeat is left alone |
+| `TestJobRepository_ReapStale_HandlesNonUUIDLockedBy` | A malformed `locked_by` value is reaped instead of crashing the query |
 | `TestExecutionService_Run_SuccessCompletesJob` | The full claim → execute → complete pipeline |
 | `TestExecutionService_Run_RetriesThenDeadLetters` | A failing job retries with backoff, then dead-letters once attempts are exhausted |
+| `TestRouter_*` (`internal/handler`) | HTTP-layer tests against the real router: register/login, 401 with no bearer token, 400 on an invalid job type, and the RBAC gate — a `member` gets 403 deleting a project, its `owner` gets 200 |
 
 ## Verifying the Frontend UI
 

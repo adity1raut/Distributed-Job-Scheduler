@@ -168,3 +168,38 @@ func TestJobRepository_ReapStale_LeavesJobsWithRecentHeartbeat(t *testing.T) {
 		t.Fatalf("expected job to remain %q, got %q", models.JobStatusClaimed, after.Status)
 	}
 }
+
+// TestJobRepository_ReapStale_HandlesNonUUIDLockedBy is a regression test:
+// locked_by is a plain TEXT column, not a UUID FK, so nothing stops it from
+// holding a non-UUID value. ReapStale used to cast it straight to uuid with
+// no guard, which crashed the whole reap query outright once Postgres's
+// query planner happened to evaluate that cast before the "is this even
+// UUID-shaped" check — which it's under no obligation to avoid, since SQL
+// doesn't guarantee left-to-right evaluation of AND-ed WHERE clauses.
+func TestJobRepository_ReapStale_HandlesNonUUIDLockedBy(t *testing.T) {
+	pool := testutil.RequireDB(t)
+	ctx := context.Background()
+	fx := testutil.SeedFixture(t, ctx, pool, testutil.SeedFixtureOpts{})
+	jobRepo := repository.NewJobRepository(pool)
+
+	jobID := testutil.ScanUUID(t, ctx, pool, `
+		INSERT INTO jobs (queue_id, type, status, payload, max_attempts, locked_by, locked_at)
+		VALUES ($1, 'immediate', 'claimed', '{}', 5, 'not-a-uuid', now() - interval '5 minutes')
+		RETURNING id`, fx.QueueID)
+
+	reaped, err := jobRepo.ReapStale(ctx, 60)
+	if err != nil {
+		t.Fatalf("reap should tolerate a non-UUID locked_by, got error: %v", err)
+	}
+	if reaped != 1 {
+		t.Fatalf("expected the malformed-locked_by job to be reaped, got %d reaped", reaped)
+	}
+
+	after, err := jobRepo.GetByID(ctx, jobID)
+	if err != nil {
+		t.Fatalf("get after reap: %v", err)
+	}
+	if after.Status != models.JobStatusQueued {
+		t.Fatalf("expected status %q after reaping, got %q", models.JobStatusQueued, after.Status)
+	}
+}

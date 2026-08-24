@@ -15,6 +15,7 @@ const (
 
 type Worker struct {
 	ID        uuid.UUID    `json:"id" db:"id"`
+	OrgID     uuid.UUID    `json:"org_id" db:"org_id"`
 	Hostname  string       `json:"hostname" db:"hostname"`
 	Status    WorkerStatus `json:"status" db:"status"`
 	StartedAt time.Time    `json:"started_at" db:"started_at"`
