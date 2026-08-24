@@ -138,3 +138,19 @@ src/
   go through `lib/confirm.js` + `ConfirmHost.jsx` instead of the
   browser's native `window.confirm()`, so they match the app's theme and
   can be dismissed with Escape or a click outside.
+- **Rate limiting and continuous polling — verified working.** The
+  dashboard is polling-heavy: a page like Overview alone runs five
+  independent `usePolling` calls (`getOverview` every 5s, plus
+  workers/throughput/project lists on their own intervals), each a
+  separate request against the API's per-org rate limiter
+  (`RATE_LIMIT_PER_MIN`, default 120/min, see
+  [`server/README.md`](../server/README.md#testing)). The limiter used to
+  reset its 60s window on *every* request instead of only the first one
+  in a window, so continuous polling kept pushing the expiry forward and
+  the count never reset — real dashboard usage would get wrongly stuck
+  on `429 rate limit exceeded` after a couple of minutes. That's fixed
+  server-side (`internal/middleware/ratelimit.go`); with the fix, leaving
+  the dashboard open and polling continuously across multiple tabs/pages
+  no longer trips a false rate limit. The frontend itself needed no
+  change — a `429` just surfaces through the normal `error` state /
+  toast path in `src/api/client.js`, same as any other API error.

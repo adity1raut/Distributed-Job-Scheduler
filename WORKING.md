@@ -10,7 +10,8 @@ It complements the shorter docs already in the repo:
 
 | Doc | Focus |
 |---|---|
-| [`Readme.md`](Readme.md) | Setup commands, tech stack, test list |
+| [`Readme.md`](Readme.md) | Setup commands, tech stack |
+| [`server/README.md`](server/README.md) | Backend structure, `cmd/`/`internal/` breakdown, test list |
 | [`server/docs/architecture.md`](server/docs/architecture.md) | Component diagram, job lifecycle diagram |
 | [`server/docs/design-decisions.md`](server/docs/design-decisions.md) | *Why* each trade-off was made |
 | [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint, request/response shapes |

@@ -52,12 +52,20 @@ func rateLimitSubject(r *http.Request) string {
 	return "ip:" + r.RemoteAddr
 }
 
+// incrWithWindow increments key and returns the new count. The window's TTL
+// is set only on the first request that creates the key, not on every call
+// — otherwise continuous traffic (e.g. dashboard polling) would keep pushing
+// the expiry forward forever and the "fixed window" would never actually
+// reset.
 func incrWithWindow(ctx context.Context, rdb *redis.Client, key string, window time.Duration) (int64, error) {
-	pipe := rdb.TxPipeline()
-	incr := pipe.Incr(ctx, key)
-	pipe.Expire(ctx, key, window)
-	if _, err := pipe.Exec(ctx); err != nil {
+	count, err := rdb.Incr(ctx, key).Result()
+	if err != nil {
 		return 0, err
 	}
-	return incr.Val(), nil
+	if count == 1 {
+		if err := rdb.Expire(ctx, key, window).Err(); err != nil {
+			return 0, err
+		}
+	}
+	return count, nil
 }

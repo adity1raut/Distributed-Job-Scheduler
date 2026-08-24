@@ -6,11 +6,9 @@ A production-inspired distributed job scheduling platform for reliably executing
 
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
-- [Dashboard](#dashboard)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
 - [Testing](#testing)
-- [Verifying the Frontend UI](#verifying-the-frontend-ui)
 - [Rolling Back Migrations](#rolling-back-migrations)
 - [Documentation](#documentation)
 
@@ -42,28 +40,13 @@ This split mirrors a real deployment, where the API and each org's worker fleet 
 The job lifecycle state machine lives in
 [`server/docs/architecture.md`](server/docs/architecture.md).
 
-## Dashboard
-
-See [`ui-interface/README.md`](ui-interface/README.md) for the frontend's
-feature list, structure, and setup instructions.
 
 ## Project Structure
 
 ```
+server/                      # Go API + worker, see server/README.md
 ui-interface/                # React dashboard (Vite), see ui-interface/README.md
 ```
-
-Backend structure and docs live under `server/`. See the
-[Documentation](#documentation) table below for the full breakdown:
-architecture, ER diagram, API reference, design decisions.
-
-## Prerequisites
-
-- Go 1.25+
-- PostgreSQL 15+
-- Redis 7+
-- Node.js 18+ (for the frontend)
-- [golang-migrate CLI](https://github.com/golang-migrate/migrate)
 
 ## Setup
 
@@ -146,49 +129,15 @@ From `server/`:
 go test ./...
 ```
 
-This runs the pure unit tests unconditionally, but every test that needs a
-real Postgres (concurrency, claiming, reaping, the full HTTP router) skips
-itself unless `TEST_DATABASE_URL` is set. The HTTP-layer tests also
-need a reachable Redis (`TEST_REDIS_ADDR`, default `localhost:6379`), since
-the real rate-limit middleware sits in that router too. Point it at a
-throwaway database, not the one you're using for manual testing: these
-tests don't clean up after themselves.
-
-```bash
-docker exec js-postgres createdb -U postgres jobscheduler_test
-migrate -path migrations -database "postgres://postgres:postgres@localhost:5432/jobscheduler_test?sslmode=disable" up
-TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobscheduler_test?sslmode=disable" go test ./...
-```
+See [`server/README.md`](server/README.md#testing) for what runs
+unconditionally vs. what needs a real Postgres/Redis, and how to point
+tests at a throwaway database.
 
 From `ui-interface/`, there's no test runner configured, only lint:
 
 ```bash
 npm run lint
 ```
-
-## Verifying the Frontend UI
-
-`go test` and the API only prove the backend is correct. Neither touches
-the dashboard. With the API, a worker, and `npm run dev` running (see
-[Setup](#setup)), open the app and walk through this list. Each row is
-something to click, not just read.
-
-| Area | What to check |
-|---|---|
-| **Dropdowns** | Open the job-type selector (Jobs tab) or the status filter. It opens a themed popover menu that matches light/dark mode, not the browser's native OS-style option list. |
-| **Toasts** | Do anything that mutates state (create a project, submit a job, pause a queue). A toast slides in from the top-right with a colored left rule and a shrinking progress bar; hovering it pauses the auto-dismiss timer. |
-| **Confirm dialog** | Projects → **Delete** on a project card. A centered modal with a warning icon and a solid-red **Delete** button appears, not the browser's native `confirm()` popup. Escape or clicking outside cancels it. |
-| **Sidebar nav** | Overview / Projects / Workers each have an icon, and the active page is a filled amber pill, not just a text color change. |
-| **Section tabs** | On a queue's detail page, Jobs / Scheduled / Dead letters / Configuration render as a segmented pill control: the active tab sits raised on its own background inside a bordered track. |
-| **Auth tabs** | On `/login` or `/register`, a "Log in / Register" tab pair sits above the form and switches pages when clicked. |
-| **Tables** | Job/worker/queue listings have a filled header bar and roomy rows, not a cramped, thin-text grid. |
-| **Number fields** | Priority, concurrency, delay (ms), and batch-count inputs show no up/down spinner arrows, just plain numeric fields. |
-| **Scrollbars** | Open a dropdown with more options than fit (e.g. the status filter). The scrollbar is a thin, theme-colored bar, not the platform default. |
-| **Headings** | Page titles ("Overview", "Projects", a queue's name, "Job detail") are visibly larger and bolder than the body text under them. |
-
-For the underlying job-scheduling behavior itself (delays, concurrency
-limits, retries, dead-lettering, cron dispatch) rather than the UI chrome,
-follow the full click-by-click script in [`WORKING.md`](WORKING.md#part-2--verifying-it-all-yourself-locally-in-the-ui).
 
 ## Rolling Back Migrations
 
@@ -202,6 +151,7 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 
 | Doc | Covers |
 |---|---|
+| [`server/README.md`](server/README.md) | Backend structure, `cmd/`/`internal/` breakdown |
 | [`server/docs/architecture.md`](server/docs/architecture.md) | Component diagram, job lifecycle state machine |
 | [`server/docs/er-diagram.md`](server/docs/er-diagram.md) | Full ER diagram, keys, indexes, cascade behavior |
 | [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint: request/response shapes, error codes, pagination |
