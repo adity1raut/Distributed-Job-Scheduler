@@ -276,8 +276,8 @@ This is proven under load by
 In short: **`concurrency_limit` caps how much of one queue's work can run
 in parallel, and the number of worker processes/threads is what actually
 supplies that parallelism.** You can raise the limit but if you only have
-one single-threaded worker, nothing changes. You need both — see
-[`ui-interface/docs/getting-started.md`](../../ui-interface/docs/getting-started.md#7-concurrency--how-many-jobs-actually-run-at-once)
+one single-threaded worker, nothing changes. You need both — see the
+[concurrency walkthrough](../../ui-interface/docs/getting-started.md#7-concurrency--how-many-jobs-actually-run-at-once)
 for a hands-on way to watch this interaction from the dashboard.
 
 Priority also lives in this same query: `ORDER BY priority DESC, run_at

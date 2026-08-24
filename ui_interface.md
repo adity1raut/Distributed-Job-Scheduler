@@ -45,8 +45,8 @@ That's enough to load the app, but not enough to see a job actually run —
 for registering an org, starting a `cmd/worker` for it, creating your
 first project/queue, submitting each of the four job types and watching
 how they perform (retries, dead-lettering, cron schedules, concurrency),
-and running more than one org at once, see
-[`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md).
+and running more than one org at once, see the
+[getting-started guide](ui-interface/docs/getting-started.md).
 
 ## Testing
 
@@ -83,10 +83,9 @@ something to click, not just read.
 
 For the underlying job-scheduling behavior itself (delays, concurrency
 limits, retries, dead-lettering, cron dispatch) rather than the UI chrome,
-follow the full click-by-click script in
-[`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md),
-backed by the mechanics in
-[`server/docs/architecture.md`](server/docs/architecture.md).
+follow the full click-by-click script in the same
+[getting-started guide](ui-interface/docs/getting-started.md), backed by
+the mechanics in the [backend architecture doc](server/docs/architecture.md).
 
 ## Scripts
 
@@ -164,8 +163,8 @@ ui-interface/src/
   independent `usePolling` calls (`getOverview` every 5s, plus
   workers/throughput/project lists on their own intervals), each a
   separate request against the API's per-org rate limiter
-  (`RATE_LIMIT_PER_MIN`, default 120/min, see
-  [`server.md`](server.md#testing)). The limiter used to reset its 60s
+  (`RATE_LIMIT_PER_MIN`, default 120/min, see the
+  [backend testing notes](server.md#testing)). The limiter used to reset its 60s
   window on *every* request instead of only the first one in a window,
   so continuous polling kept pushing the expiry forward and the count
   never reset — real dashboard usage would get wrongly stuck on `429
