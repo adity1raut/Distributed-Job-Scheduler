@@ -160,17 +160,11 @@ migrate -path migrations -database "postgres://postgres:postgres@localhost:5432/
 TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobscheduler_test?sslmode=disable" go test ./...
 ```
 
-| Test | Proves |
-|---|---|
-| `TestClaimNext_NoDuplicateClaims` | 50 workers racing for 200 jobs never double-claim |
-| `TestJobRepository_Create_IdempotencyKeyDedupes` | A repeated idempotency key returns the same job, not a duplicate |
-| `TestJobRepository_ClaimNext_RespectsPause` | A paused queue yields no claims |
-| `TestJobRepository_ClaimNext_RespectsConcurrencyLimit` | `concurrency_limit` is enforced, then releases once a job completes |
-| `TestJobRepository_ReapStale_*` | A claim with no recent heartbeat is requeued; one with a live heartbeat is left alone |
-| `TestJobRepository_ReapStale_HandlesNonUUIDLockedBy` | A malformed `locked_by` value is reaped instead of crashing the query |
-| `TestExecutionService_Run_SuccessCompletesJob` | The full claim, execute, complete pipeline |
-| `TestExecutionService_Run_RetriesThenDeadLetters` | A failing job retries with backoff, then dead-letters once attempts are exhausted |
-| `TestRouter_*` (`internal/handler`) | HTTP-layer tests against the real router: register/login, 401 with no bearer token, 400 on an invalid job type, cross-org access returning 404, and the RBAC gate, where a `member` gets 403 deleting a project and its `owner` gets 200 |
+From `ui-interface/`, there's no test runner configured, only lint:
+
+```bash
+npm run lint
+```
 
 ## Verifying the Frontend UI
 

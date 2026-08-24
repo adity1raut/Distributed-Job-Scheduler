@@ -37,6 +37,42 @@ npm run dev
 Requires the backend running (see [`../Readme.md`](../Readme.md)). The
 dashboard has nothing to render without it.
 
+## Testing
+
+```bash
+npm run lint
+```
+
+There's no automated test suite on the frontend (no Jest/Vitest, no
+component tests). Lint is the only automated check. For actually
+verifying the UI's behavior, walk through the checklist below against a
+running instance.
+
+## Verifying the Frontend UI
+
+`go test` and the API only prove the backend is correct. Neither touches
+the dashboard. With the API, a worker, and `npm run dev` running (see
+[Setup](#setup)), open the app and walk through this list. Each row is
+something to click, not just read.
+
+| Area | What to check |
+|---|---|
+| **Dropdowns** | Open the job-type selector (Jobs tab) or the status filter. It opens a themed popover menu that matches light/dark mode, not the browser's native OS-style option list. |
+| **Toasts** | Do anything that mutates state (create a project, submit a job, pause a queue). A toast slides in from the top-right with a colored left rule and a shrinking progress bar; hovering it pauses the auto-dismiss timer. |
+| **Confirm dialog** | Projects → **Delete** on a project card. A centered modal with a warning icon and a solid-red **Delete** button appears, not the browser's native `confirm()` popup. Escape or clicking outside cancels it. |
+| **Sidebar nav** | Overview / Projects / Workers each have an icon, and the active page is a filled amber pill, not just a text color change. |
+| **Section tabs** | On a queue's detail page, Jobs / Scheduled / Dead letters / Configuration render as a segmented pill control: the active tab sits raised on its own background inside a bordered track. |
+| **Auth tabs** | On `/login` or `/register`, a "Log in / Register" tab pair sits above the form and switches pages when clicked. |
+| **Tables** | Job/worker/queue listings have a filled header bar and roomy rows, not a cramped, thin-text grid. |
+| **Number fields** | Priority, concurrency, delay (ms), and batch-count inputs show no up/down spinner arrows, just plain numeric fields. |
+| **Scrollbars** | Open a dropdown with more options than fit (e.g. the status filter). The scrollbar is a thin, theme-colored bar, not the platform default. |
+| **Headings** | Page titles ("Overview", "Projects", a queue's name, "Job detail") are visibly larger and bolder than the body text under them. |
+
+For the underlying job-scheduling behavior itself (delays, concurrency
+limits, retries, dead-lettering, cron dispatch) rather than the UI chrome,
+follow the full click-by-click script in
+[`../WORKING.md`](../WORKING.md#part-2--verifying-it-all-yourself-locally-in-the-ui).
+
 ## Scripts
 
 | Command | Does |
