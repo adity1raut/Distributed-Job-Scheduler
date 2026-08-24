@@ -32,7 +32,7 @@ requires a bearer token.
 | **Base URL** | `http://localhost:8080` in development (whatever `API_PORT` is set to) |
 | **Format** | JSON request and response bodies throughout |
 | **Auth** | Bearer JWT on every route under `/api`, except `POST /api/auth/register` and `POST /api/auth/login` |
-| **Versioning** | Unversioned — there is one API surface, at the root of `/api` |
+| **Versioning** | Unversioned; there is one API surface, at the root of `/api` |
 
 ## Conventions
 
@@ -46,19 +46,19 @@ issued at register/login on every subsequent request:
 Authorization: Bearer <token>
 ```
 
-The token encodes `user_id`, `org_id`, and `role`. Every resource lookup in
-this API is implicitly scoped to the caller's `org_id` — you cannot read or
-modify another organization's data by guessing an ID; you'll get `404 NOT
-FOUND` rather than `403 FORBIDDEN`, so a request can't be used to confirm
-whether a resource exists in someone else's org.
+The token encodes `user_id`, `org_id`, and `role`. Every resource lookup
+in this API is implicitly scoped to the caller's `org_id`. You cannot
+read or modify another organization's data by guessing an ID; you'll get
+`404 NOT FOUND` rather than `403 FORBIDDEN`, so a request can't be used
+to confirm whether a resource exists in someone else's org.
 
 Tokens expire after `JWT_EXPIRY_HOURS` (default 24). An expired or invalid
 token returns `401 UNAUTHORIZED` on any protected route.
 
 ### Identifiers and timestamps
 
-- Every resource ID is a UUID (v4), generated server-side. IDs are safe to
-  expose in URLs and API responses — they don't reveal row counts or
+- Every resource ID is a UUID (v4), generated server-side. IDs are safe
+  to expose in URLs and API responses; they don't reveal row counts or
   creation order the way a sequential integer would.
 - Every timestamp is RFC 3339 / ISO 8601, in UTC, e.g. `2026-08-24T09:30:00Z`.
 
@@ -77,15 +77,15 @@ from every endpoint, looks like this:
 }
 ```
 
-`code` is the stable, machine-readable part — switch on it in client code.
+`code` is the stable, machine-readable part; switch on it in client code.
 `message` is for a human and its exact wording may change between
 releases. `request_id` matches the `X-Request-ID` response header and the
-structured server log line for that request — hand it over when reporting
+structured server log line for that request. Hand it over when reporting
 a bug and the exact request is one lookup away.
 
 | Status | Code | Meaning |
 |---|---|---|
-| 400 | `BAD_REQUEST` | Validation failed — a missing field, malformed JSON, or an invalid enum value |
+| 400 | `BAD_REQUEST` | Validation failed: a missing field, malformed JSON, or an invalid enum value |
 | 401 | `UNAUTHORIZED` | Missing, invalid, or expired bearer token, or incorrect login credentials |
 | 403 | `FORBIDDEN` | Authenticated, but your role doesn't permit this action |
 | 404 | `NOT_FOUND` | The resource doesn't exist, or doesn't belong to your organization |
@@ -97,9 +97,9 @@ a bug and the exact request is one lookup away.
 
 Job listings are the one collection that can genuinely grow large, so
 they're paginated with an opaque, keyset cursor over `(created_at, id)`
-rather than `OFFSET` — a cursor stays an index seek no matter how deep you
-page, where `OFFSET` degrades into a full scan once the table has millions
-of rows.
+rather than `OFFSET`. A cursor stays an index seek no matter how deep you
+page, where `OFFSET` degrades into a full scan once the table has
+millions of rows.
 
 ```json
 { "items": [ /* ... */ ], "next_cursor": "eyJ0Ijoi..." }
@@ -122,19 +122,19 @@ X-RateLimit-Limit: 120
 X-RateLimit-Remaining: 117
 ```
 
-Exceeding `RATE_LIMIT_PER_MIN` (default 120) returns `429 RATE_LIMITED`. If
-Redis itself is unreachable, requests are allowed through rather than
-rejected — a temporarily-unenforced soft limit is judged the smaller
+Exceeding `RATE_LIMIT_PER_MIN` (default 120) returns `429 RATE_LIMITED`.
+If Redis itself is unreachable, requests are allowed through rather than
+rejected. A temporarily-unenforced soft limit is judged the smaller
 failure compared to the whole API going down over a non-critical
 dependency.
 
 ## Quickstart
 
-An end-to-end walkthrough — register, create a project and a queue, submit
-a job, and check on it:
+An end-to-end walkthrough: register, create a project and a queue, submit
+a job, and check on it.
 
 ```bash
-# 1. Register — this creates both your organization and your user
+# 1. Register (this creates both your organization and your user)
 curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"organization_name":"Acme","email":"you@acme.com","password":"at-least-8-chars"}'
@@ -160,7 +160,7 @@ curl -s -X POST http://localhost:8080/api/queues/<queueID>/jobs \
   -d '{"type":"immediate","payload":{"task":"echo"}}'
 # => [ { "id": "<jobID>", "status": "queued", ... } ]
 
-# 5. Check on it (needs a worker running to actually complete — see the README)
+# 5. Check on it (needs a worker running to actually complete, see the README)
 curl -s http://localhost:8080/api/jobs/<jobID> -H "Authorization: Bearer $TOKEN"
 # => { "status": "completed", "executions": [ ... ], ... }
 ```
@@ -176,7 +176,7 @@ curl -s http://localhost:8080/api/jobs/<jobID> -H "Authorization: Bearer $TOKEN"
 
 #### `POST /api/auth/register`
 
-Registering is not just creating a user — it provisions a brand-new
+Registering is not just creating a user. It provisions a brand-new
 organization with you as its `owner`, and silently seeds a sensible
 exponential-backoff retry policy for that org so you can create a queue
 immediately without configuring a policy yourself first.
@@ -222,9 +222,9 @@ immediately without configuring a policy yourself first.
 | `email` | string | yes |
 | `password` | string | yes |
 
-**Response** `200 OK` — identical shape to register's response.
+**Response** `200 OK`: identical shape to register's response.
 
-**Errors:** `401 UNAUTHORIZED` (wrong email or password — deliberately not
+**Errors:** `401 UNAUTHORIZED` (wrong email or password, deliberately not
 distinguished, so a failed attempt can't be used to confirm which emails
 are registered)
 
@@ -252,24 +252,24 @@ belongs to exactly one organization.
 |---|---|---|
 | `name` | string | yes |
 
-**Response** `201 Created` — the created project:
+**Response** `201 Created`: the created project:
 
 ```json
 { "id": "...", "org_id": "...", "owner_id": "...", "name": "checkout-service", "created_at": "..." }
 ```
 
 #### `GET /api/projects`
-**Response** `200 OK` — an array of projects, no pagination (project counts
+**Response** `200 OK`: an array of projects, no pagination (project counts
 per org are small enough not to need it).
 
 #### `GET /api/projects/{projectID}`
-**Response** `200 OK` — a single project. `404 NOT_FOUND` if it doesn't
+**Response** `200 OK`: a single project. `404 NOT_FOUND` if it doesn't
 exist or belongs to a different organization.
 
 #### `DELETE /api/projects/{projectID}`
 
-Cascades to every queue, job, job execution, and log under this project —
-irreversibly.
+Cascades to every queue, job, job execution, and log under this project.
+Irreversibly.
 
 **Authorization:** `owner` or `admin` only. A `member` receives `403 FORBIDDEN`.
 
@@ -290,11 +290,11 @@ irreversibly.
 { "name": "emails", "priority": 0, "concurrency_limit": 5, "retry_policy_id": null }
 ```
 
-**Response** `201 Created` — the created queue. `409 CONFLICT` if the name
+**Response** `201 Created`: the created queue. `409 CONFLICT` if the name
 is already used in this project.
 
 #### `GET /api/projects/{projectID}/queues`
-**Response** `200 OK` — an array of queues, unpaginated.
+**Response** `200 OK`: an array of queues, unpaginated.
 
 ---
 
@@ -310,12 +310,12 @@ is already used in this project.
 | `GET` | `/api/queues/{queueID}/stats` | Live per-status job counts |
 
 #### `GET /api/queues/{queueID}`
-**Response** `200 OK` — the queue, including its current `priority`,
+**Response** `200 OK`: the queue, including its current `priority`,
 `concurrency_limit`, `retry_policy_id`, and `is_paused`.
 
 #### `PATCH /api/queues/{queueID}`
 
-All fields are optional — only the ones present in the request body are
+All fields are optional. Only the ones present in the request body are
 changed; omitted fields keep their current value.
 
 **Request body**
@@ -330,11 +330,11 @@ changed; omitted fields keep their current value.
 { "priority": 2, "concurrency_limit": 10, "retry_policy_id": null }
 ```
 
-**Response** `200 OK` — the updated queue.
+**Response** `200 OK`: the updated queue.
 
 #### `DELETE /api/queues/{queueID}`
 
-Cascades to every job, execution, and log in this queue — irreversibly.
+Cascades to every job, execution, and log in this queue. Irreversibly.
 
 **Authorization:** `owner` or `admin` only. A `member` receives `403 FORBIDDEN`.
 
@@ -342,9 +342,9 @@ Cascades to every job, execution, and log in this queue — irreversibly.
 
 #### `POST /api/queues/{queueID}/pause` · `POST /api/queues/{queueID}/resume`
 
-Pausing only stops the queue from being offered to workers for new claims
-— nothing already running is interrupted, and it finishes normally either
-way.
+Pausing only stops the queue from being offered to workers for new
+claims. Nothing already running is interrupted; it finishes normally
+either way.
 
 **Response** `200 OK`
 
@@ -354,7 +354,7 @@ way.
 
 #### `GET /api/queues/{queueID}/stats`
 
-**Response** `200 OK` — a live count of jobs in this queue by status:
+**Response** `200 OK`: a live count of jobs in this queue by status:
 
 ```json
 { "scheduled": 0, "queued": 4, "claimed": 1, "running": 1, "completed": 82, "failed": 3, "dead": 1 }
@@ -375,7 +375,7 @@ every job that doesn't specify otherwise inherits its queue's policy.
 > `retry_policy_id`, but nothing in this API currently issues one beyond
 > the org's auto-seeded default. In practice this means every queue today
 > runs the same backoff strategy unless that changes. Documented here
-> rather than silently left implicit — this is a known gap, not an
+> rather than silently left implicit: this is a known gap, not an
 > oversight.
 
 The default policy, seeded at registration:
@@ -389,7 +389,7 @@ The default policy, seeded at registration:
 ```
 
 With this policy, a failing job retries after 5s, 10s, 20s, then 40s,
-dead-lettering after the 5th failed attempt — roughly 75 seconds from
+dead-lettering after the 5th failed attempt: roughly 75 seconds from
 first failure to dead letter.
 
 ---
@@ -427,7 +427,7 @@ first failure to dead letter.
 | `batch` | `now()`, applied to every row created |
 
 > **`recurring` is not a submittable type.** You don't submit a recurring
-> job directly — you create a cron definition under
+> job directly. You create a cron definition under
 > [Scheduled jobs](#scheduled-jobs-cron), and each due cron fire is what
 > creates a job row with `type: "recurring"`.
 
@@ -435,7 +435,7 @@ Supplying an `idempotency_key` makes submission safe to retry: resubmitting
 the exact same key returns the original job rather than creating a
 duplicate.
 
-> **The response is always an array**, even for a single job — only
+> **The response is always an array**, even for a single job. Only
 > `batch` ever returns more than one element.
 
 ```json
@@ -449,7 +449,7 @@ duplicate.
 ]
 ```
 
-**Errors:** `400 BAD_REQUEST` — an invalid `type`, or a type-specific field
+**Errors:** `400 BAD_REQUEST`: an invalid `type`, or a type-specific field
 missing (`delay_ms` for `delayed`, `run_at` for `scheduled`, `batch_count`
 for `batch`).
 
@@ -464,11 +464,11 @@ for `batch`).
 | `cursor` | string | — | Opaque cursor from a previous page's `next_cursor` |
 | `limit` | int | `20` | Max `100` |
 
-**Response** `200 OK` — see [Pagination](#pagination) for the envelope shape.
+**Response** `200 OK`: see [Pagination](#pagination) for the envelope shape.
 
 #### `GET /api/jobs/{jobID}`
 
-**Response** `200 OK` — the job plus its full execution history:
+**Response** `200 OK`: the job plus its full execution history:
 
 ```json
 {
@@ -485,15 +485,15 @@ for `batch`).
 
 #### `POST /api/jobs/{jobID}/retry`
 
-Works regardless of the job's current status — resets `attempts` to `0`
-and requeues it immediately. Just as valid on a job that's `dead` as one
+Works regardless of the job's current status. Resets `attempts` to `0`
+and requeues it immediately, just as valid on a job that's `dead` as one
 that's merely `failed`.
 
-**Response** `200 OK` — the updated job.
+**Response** `200 OK`: the updated job.
 
 #### `GET /api/executions/{executionID}/logs`
 
-**Response** `200 OK` — an array of structured log entries
+**Response** `200 OK`: an array of structured log entries
 (`debug`/`info`/`warn`/`error`) written during that one attempt.
 
 ---
@@ -526,24 +526,24 @@ one `type: "recurring"` job into the queue per firing.
 { "cron_expression": "*/5 * * * *", "payload_template": { "task": "echo" } }
 ```
 
-Nothing runs the instant you create this definition — the first job row
+Nothing runs the instant you create this definition. The first job row
 appears at its next scheduled tick.
 
-**Response** `201 Created` — the created definition, including its computed
+**Response** `201 Created`: the created definition, including its computed
 `next_run_at`.
 
 #### `GET /api/queues/{queueID}/scheduled-jobs`
-**Response** `200 OK` — an array, unpaginated.
+**Response** `200 OK`: an array, unpaginated.
 
 #### `POST /api/scheduled-jobs/{scheduledJobID}/pause` · `.../resume`
-**Response** `200 OK` — `{ "is_active": false }` (or `true`).
+**Response** `200 OK`: `{ "is_active": false }` (or `true`).
 
 ---
 
 ## Dead letter queue
 
 A job lands here once it has exhausted every retry attempt under its
-policy — a permanent failure that needs a human or an automated replay to
+policy: a permanent failure that needs a human or an automated replay to
 move again.
 
 | Method | Path | Description |
@@ -572,11 +572,11 @@ move again.
 
 #### `POST /api/dlq/{entryID}/replay`
 
-This does not create a new job — it takes the original job, resets it to
+This does not create a new job. It takes the original job, resets it to
 `queued` with `attempts` back to `0`, and flags this dead-letter entry as
 `replayed: true` so it's clear it's already been actioned.
 
-**Response** `200 OK` — the requeued job.
+**Response** `200 OK`: the requeued job.
 
 ---
 
@@ -607,7 +607,7 @@ only ever returns workers belonging to your own org.
 
 > `is_stale` can be `true` while `status` still reads `online`. That
 > combination means the worker has missed its `STALE_JOB_SEC` heartbeat
-> window — it's very likely dead, just not yet formally reaped by the
+> window: it's very likely dead, just not yet formally reaped by the
 > scheduler's next tick.
 
 #### `GET /api/workers/{workerID}/heartbeats`
@@ -618,7 +618,7 @@ only ever returns workers belonging to your own org.
 |---|---|---|
 | `limit` | int | `50` |
 
-**Response** `200 OK` — an array of `{ reported_at, active_job_count }` samples,
+**Response** `200 OK`: an array of `{ reported_at, active_job_count }` samples,
 newest first. Scoped to your org: a `workerID` belonging to another
 organization returns an empty array rather than another org's data.
 
@@ -626,7 +626,7 @@ organization returns an empty array rather than another org's data.
 
 ## Dashboard
 
-Aggregate, cross-project views for the landing page — everything here is
+Aggregate, cross-project views for the landing page. Everything here is
 scoped to your organization across every project in it.
 
 | Method | Path | Description |
@@ -650,9 +650,9 @@ scoped to your organization across every project in it.
 
 #### `GET /api/dashboard/recent-jobs`
 
-The most recently created jobs across every queue in every project in your
-org, newest first — the org-wide equivalent of a single queue's job list,
-so you don't need to open a specific queue to see recent activity.
+The most recently created jobs across every queue in every project in
+your org, newest first. The org-wide equivalent of a single queue's job
+list, so you don't need to open a specific queue to see recent activity.
 
 **Query parameters**
 
@@ -678,7 +678,7 @@ so you don't need to open a specific queue to see recent activity.
 #### `GET /api/dashboard/throughput`
 
 One bucket per hour for the last 24 hours, oldest first, zero-filled for
-hours with no finished jobs — the time-series counterpart to
+hours with no finished jobs. The time-series counterpart to
 `completed_jobs_24h` / `failed_jobs_24h` on the overview, for actually
 visualizing throughput rather than reading a single rolled-up number.
 
@@ -703,6 +703,6 @@ visualizing throughput rather than reading a single rolled-up number.
 
 **Authorization:** none required.
 
-Returns `200 ok` as plain text with no body parsing needed — this is the
-endpoint a container orchestrator or load balancer hits to decide whether
-this replica is still alive.
+Returns `200 ok` as plain text with no body parsing needed. This is the
+endpoint a container orchestrator or load balancer hits to decide
+whether this replica is still alive.
