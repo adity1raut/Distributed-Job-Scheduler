@@ -6,10 +6,10 @@ requires a bearer token.
 
 ## Contents
 
-- [Conventions](#conventions)
-- [Endpoint index](#endpoint-index)
-- [Endpoints that matter](#endpoints-that-matter)
-- [Health](#health)
+- **[Conventions](#conventions)**
+- **[Endpoint index](#endpoint-index)**
+- **[Endpoints that matter](#endpoints-that-matter)**
+- **[Health](#health)**
 
 ## Conventions
 
@@ -74,7 +74,7 @@ smaller failure than an outage over a non-critical dependency.
 
 Every route in the API, for reference. Behavior worth knowing beyond the
 method and path is covered for the starred (`*`) rows in
-[Endpoints that matter](#endpoints-that-matter) below; the rest are
+**[Endpoints that matter](#endpoints-that-matter)** below; the rest are
 standard CRUD/list operations with no surprises.
 
 | Method | Path | Description |
