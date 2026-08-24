@@ -291,6 +291,15 @@ func (r *JobRepository) Retry(ctx context.Context, id uuid.UUID) (*models.Job, e
 
 // ReapStale requeues jobs stuck in claimed/running whose owning worker has
 // sent no heartbeat inside staleSec — the worker most likely crashed.
+// ReapStale requeues any claim whose worker has gone quiet. locked_by is a
+// plain TEXT column (not a UUID FK — see design-decisions.md), so it's
+// guarded with a format check before ever being cast: Postgres doesn't
+// guarantee left-to-right evaluation of AND-ed WHERE clauses, so a bare
+// `locked_by::uuid` can still get evaluated (and error out) on a
+// non-UUID value even sitting behind a `locked_by IS NOT NULL` check,
+// depending on the query plan the row count happens to pick. A value that
+// isn't UUID-shaped at all can't belong to any real worker anyway, so it's
+// treated as immediately reapable rather than crashing the whole tick.
 func (r *JobRepository) ReapStale(ctx context.Context, staleSec int) (int, error) {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE jobs
@@ -298,10 +307,13 @@ func (r *JobRepository) ReapStale(ctx context.Context, staleSec int) (int, error
 		WHERE status IN ('claimed', 'running')
 		  AND locked_by IS NOT NULL
 		  AND locked_at < now() - make_interval(secs => $1)
-		  AND NOT EXISTS (
-		    SELECT 1 FROM worker_heartbeats wh
-		    WHERE wh.worker_id = jobs.locked_by::uuid
-		      AND wh.reported_at > now() - make_interval(secs => $1)
+		  AND (
+		    locked_by !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+		    OR NOT EXISTS (
+		      SELECT 1 FROM worker_heartbeats wh
+		      WHERE wh.worker_id = jobs.locked_by::uuid
+		        AND wh.reported_at > now() - make_interval(secs => $1)
+		    )
 		  )`, staleSec)
 	if err != nil {
 		return 0, err

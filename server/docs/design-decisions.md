@@ -92,9 +92,79 @@ someone deletes a project — compliance, billing disputes, that kind of thing
 — the fix is a `deleted_at` column instead of a real delete. Flagging it here
 rather than building it, since nothing in the brief calls for it yet.
 
+## Role-based access control is enforced but not yet reachable
+
+`users.role` (`owner` / `admin` / `member`) has existed in the schema and
+the JWT since the start, but nothing ever actually checked it —
+`FORBIDDEN` was a documented error code with no code path that returned it.
+Destructive routes (`DELETE /projects/{id}`, `DELETE /queues/{id}`) now go
+through `middleware.RequireRole(owner, admin)`, so a `member` gets a real
+`403 FORBIDDEN` instead of silently having full access.
+
+The honest gap: there's no invite/add-teammate endpoint yet, and
+`POST /api/auth/register` always creates the registering user as `owner`.
+So today, every user in every org is an `owner` — the gate is real and
+tested, but a `member` account can only exist if one is inserted directly
+(which is exactly how the test for this exercises it). Adding a real invite
+flow that lets an `owner` add teammates at `admin`/`member` was out of
+scope here — flagging it rather than building a half-finished invite UI to
+check a box.
+
+## Workers belong to exactly one organization
+
+Workers used to be one fleet shared across every org in the database — any
+worker process could claim any org's jobs, and the dashboard's worker list
+leaked every org's hostnames to every other org. `workers.org_id` (added in
+`000002_worker_org_scoping`) fixes both: `cmd/worker` now requires
+`WORKER_ORG_ID` at startup, only discovers and claims that org's queues,
+and every worker-facing endpoint filters by the requester's org.
+
+The column is nullable at the schema level even though the application
+always sets it on new rows — existing worker rows from before this
+migration have no org they can be correctly backfilled to, and deleting
+them would cascade-delete their `job_executions` and `job_logs` history.
+They simply stop matching any org-scoped query instead, which is
+equivalent to retiring them.
+
+The real cost: this is no longer "start one worker, it serves everyone" —
+each organization now needs its own worker process(es) pointed at its own
+`WORKER_ORG_ID`. That's the correct trade-off for genuine multi-tenant
+isolation, but it does mean the local dev setup in the README grew one
+more required step.
+
 ## How it all fits together
 
-![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; a fleet of workers polls PostgreSQL to claim jobs with SELECT FOR UPDATE SKIP LOCKED and sends heartbeats.](images/architecture.png)
+```mermaid
+flowchart TB
+    Dashboard["React Dashboard<br/>Browser client"]
+
+    subgraph API["API — N replicas"]
+        Server["API Server<br/>Go · chi router · JWT · stateless"]
+        Scheduler["Scheduler goroutine<br/>ticks · cron dispatch · reaps stale claims"]
+    end
+
+    Redis[("Redis<br/>rate-limit counters only")]
+    Postgres[("PostgreSQL<br/>single source of truth")]
+
+    subgraph WorkersA["Workers — Org A (WORKER_ORG_ID=A)"]
+        WorkerA["Worker<br/>polls · claims · executes · heartbeats"]
+    end
+
+    subgraph WorkersB["Workers — Org B (WORKER_ORG_ID=B)"]
+        WorkerB["Worker<br/>polls · claims · executes · heartbeats"]
+    end
+
+    Dashboard -- "HTTPS + JWT" --> Server
+    Dashboard -. "poll every 5s" .-> Server
+    Server -- "check / incr rate limit" --> Redis
+    Server -- "reads / writes" --> Postgres
+    Scheduler -- "pg_try_advisory_lock, dispatch due scheduled_jobs" --> Postgres
+
+    WorkerA -- "poll & claim — SELECT ... FOR UPDATE SKIP LOCKED, org A's queues only" --> Postgres
+    WorkerA -- "heartbeat every 10s" --> Postgres
+    WorkerB -- "poll & claim — org B's queues only" --> Postgres
+    WorkerB -- "heartbeat every 10s" --> Postgres
+```
 
 The full component breakdown and the job lifecycle state machine live in
 [architecture.md](architecture.md).

@@ -29,6 +29,18 @@ func RequireDB(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+// MustParseUUID parses a UUID string coming out of an HTTP JSON response in
+// an HTTP-layer test, failing the test immediately on a malformed value
+// instead of propagating a zero-UUID silently into a later assertion.
+func MustParseUUID(t *testing.T, s string) uuid.UUID {
+	t.Helper()
+	id, err := uuid.Parse(s)
+	if err != nil {
+		t.Fatalf("expected a valid UUID, got %q: %v", s, err)
+	}
+	return id
+}
+
 func ScanUUID(t *testing.T, ctx context.Context, pool *pgxpool.Pool, query string, args ...any) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID

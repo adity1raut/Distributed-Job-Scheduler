@@ -5,10 +5,17 @@ import (
 	"time"
 
 	"github.com/adity1raut/job-scheduler/internal/middleware"
+	"github.com/adity1raut/job-scheduler/internal/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/redis/go-redis/v9"
 )
+
+// destructive restricts a route to roles allowed to make irreversible
+// changes — deleting a project or queue takes everything under it with it.
+func destructive() func(http.Handler) http.Handler {
+	return middleware.RequireRole(models.RoleOwner, models.RoleAdmin)
+}
 
 // Dependencies bundles every handler and the cross-cutting config the
 // router needs to wire routes and middleware in one place.
@@ -62,7 +69,7 @@ func NewRouter(d Dependencies) http.Handler {
 				r.Get("/", d.Project.List)
 				r.Route("/{projectID}", func(r chi.Router) {
 					r.Get("/", d.Project.Get)
-					r.Delete("/", d.Project.Delete)
+					r.With(destructive()).Delete("/", d.Project.Delete)
 					r.Post("/queues", d.Queue.Create)
 					r.Get("/queues", d.Queue.List)
 				})
@@ -71,7 +78,7 @@ func NewRouter(d Dependencies) http.Handler {
 			r.Route("/queues/{queueID}", func(r chi.Router) {
 				r.Get("/", d.Queue.Get)
 				r.Patch("/", d.Queue.UpdateConfig)
-				r.Delete("/", d.Queue.Delete)
+				r.With(destructive()).Delete("/", d.Queue.Delete)
 				r.Post("/pause", d.Queue.Pause)
 				r.Post("/resume", d.Queue.Resume)
 				r.Get("/stats", d.Queue.Stats)
@@ -103,6 +110,7 @@ func NewRouter(d Dependencies) http.Handler {
 
 			r.Get("/dashboard/overview", d.Dashboard.Overview)
 			r.Get("/dashboard/recent-jobs", d.Dashboard.RecentJobs)
+			r.Get("/dashboard/throughput", d.Dashboard.Throughput)
 		})
 	})
 

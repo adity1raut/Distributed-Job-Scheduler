@@ -66,7 +66,7 @@ func (s *DashboardService) Overview(ctx context.Context, orgID uuid.UUID) (*Dash
 			   WHERE p.org_id = $1 AND j.status = 'failed' AND j.updated_at > now() - interval '24 hours'),
 			(SELECT count(*) FROM jobs j JOIN queues q ON q.id = j.queue_id JOIN projects p ON p.id = q.project_id
 			   WHERE p.org_id = $1 AND j.status = 'dead'),
-			(SELECT count(*) FROM workers WHERE status = 'online')
+			(SELECT count(*) FROM workers WHERE status = 'online' AND org_id = $1)
 	`, orgID).Scan(
 		&o.TotalProjects, &o.TotalQueues, &o.QueuedJobs, &o.RunningJobs,
 		&o.CompletedJobs24, &o.FailedJobs24, &o.DeadJobs, &o.OnlineWorkers,
@@ -100,4 +100,46 @@ func (s *DashboardService) RecentJobs(ctx context.Context, orgID uuid.UUID, stat
 		return nil, apperr.Internal("failed to fetch recent jobs")
 	}
 	return jobs, nil
+}
+
+// ThroughputBucket is one hour's worth of finished-job counts — the
+// "visualize throughput and system health" requirement, as a time series
+// instead of a single rolled-up number.
+type ThroughputBucket struct {
+	Hour      time.Time `json:"hour" db:"hour"`
+	Completed int64     `json:"completed" db:"completed"`
+	Failed    int64     `json:"failed" db:"failed"`
+}
+
+// Throughput returns one bucket per hour for the last 24 hours, oldest
+// first, zero-filled for hours with no activity — generate_series supplies
+// every hour up front so the chart's x-axis is always a continuous 24-hour
+// strip, not just whichever hours happened to have a finished job.
+func (s *DashboardService) Throughput(ctx context.Context, orgID uuid.UUID) ([]ThroughputBucket, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			gs.hour,
+			COALESCE(SUM(CASE WHEN j.status = 'completed' THEN 1 ELSE 0 END), 0) AS completed,
+			COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0) AS failed
+		FROM generate_series(
+			date_trunc('hour', now()) - interval '23 hours',
+			date_trunc('hour', now()),
+			interval '1 hour'
+		) AS gs(hour)
+		LEFT JOIN jobs j
+			ON date_trunc('hour', j.updated_at) = gs.hour
+			AND j.status IN ('completed', 'failed')
+			AND j.queue_id IN (
+				SELECT q.id FROM queues q JOIN projects p ON p.id = q.project_id WHERE p.org_id = $1
+			)
+		GROUP BY gs.hour
+		ORDER BY gs.hour`, orgID)
+	if err != nil {
+		return nil, apperr.Internal("failed to compute throughput")
+	}
+	buckets, err := pgx.CollectRows(rows, pgx.RowToStructByName[ThroughputBucket])
+	if err != nil {
+		return nil, apperr.Internal("failed to compute throughput")
+	}
+	return buckets, nil
 }

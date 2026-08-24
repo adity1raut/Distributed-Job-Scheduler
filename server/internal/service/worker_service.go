@@ -18,19 +18,19 @@ func NewWorkerService(workers *repository.WorkerRepository, staleSec int) *Worke
 	return &WorkerService{workers: workers, staleSec: staleSec}
 }
 
-func (s *WorkerService) Fleet(ctx context.Context) ([]models.WorkerWithStatus, error) {
-	workers, err := s.workers.ListWithStatus(ctx, s.staleSec)
+func (s *WorkerService) Fleet(ctx context.Context, orgID uuid.UUID) ([]models.WorkerWithStatus, error) {
+	workers, err := s.workers.ListWithStatus(ctx, orgID, s.staleSec)
 	if err != nil {
 		return nil, apperr.Internal("failed to list workers")
 	}
 	return workers, nil
 }
 
-func (s *WorkerService) Heartbeats(ctx context.Context, workerID uuid.UUID, limit int) ([]models.WorkerHeartbeat, error) {
+func (s *WorkerService) Heartbeats(ctx context.Context, workerID, orgID uuid.UUID, limit int) ([]models.WorkerHeartbeat, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	beats, err := s.workers.HeartbeatHistory(ctx, workerID, limit)
+	beats, err := s.workers.HeartbeatHistory(ctx, workerID, orgID, limit)
 	if err != nil {
 		return nil, apperr.Internal("failed to fetch heartbeat history")
 	}

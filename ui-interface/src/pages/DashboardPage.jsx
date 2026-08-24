@@ -1,7 +1,7 @@
 import { FolderKanban, Inbox, Server } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getOverview, getRecentJobs } from '../api/dashboard'
+import { getOverview, getRecentJobs, getThroughput } from '../api/dashboard'
 import { listProjects } from '../api/projects'
 import { listQueues } from '../api/queues'
 import { listWorkers } from '../api/workers'
@@ -12,6 +12,7 @@ import Metric from '../components/Metric'
 import Select from '../components/Select'
 import { SkeletonCards, SkeletonRows } from '../components/Skeleton'
 import StatusBadge from '../components/StatusBadge'
+import ThroughputChart from '../components/ThroughputChart'
 import Timestamp from '../components/Timestamp'
 import { usePolling } from '../hooks/usePolling'
 
@@ -45,6 +46,7 @@ export default function DashboardPage() {
   // since the project list fans out into one extra request per project.
   const { data: projectQueues, loading: projectsLoading } = usePolling(fetchProjectsWithQueues, [], 20000)
   const { data: workers, loading: workersLoading } = usePolling(listWorkers, [], 15000)
+  const { data: throughput, loading: throughputLoading } = usePolling(getThroughput, [], 30000)
 
   return (
     <div>
@@ -79,6 +81,12 @@ export default function DashboardPage() {
             <Metric label="Failed (24h)" value={data.failed_jobs_24h} tone="failed" />
             <Metric label="Dead-lettered" value={data.dead_jobs} tone="dead" />
           </div>
+
+          {throughputLoading && !throughput ? (
+            <span className="skeleton skeleton-bar" style={{ width: '100%', height: 200 }} />
+          ) : (
+            throughput && <ThroughputChart buckets={throughput} />
+          )}
         </>
       )}
 

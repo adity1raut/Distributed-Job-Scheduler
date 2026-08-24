@@ -13,6 +13,7 @@ type Config struct {
 	JWTSecret          string
 	JWTExpiryHours     int
 	APIPort            string
+	WorkerOrgID        string
 	WorkerPollMS       int
 	WorkerConcurrency  int
 	HeartbeatSec       int
@@ -29,6 +30,7 @@ func Load() *Config {
 		JWTSecret:          getEnv("JWT_SECRET", "dev-secret-change-me"),
 		JWTExpiryHours:     getEnvInt("JWT_EXPIRY_HOURS", 24),
 		APIPort:            getEnv("API_PORT", "8080"),
+		WorkerOrgID:        getEnv("WORKER_ORG_ID", ""),
 		WorkerPollMS:       getEnvInt("WORKER_POLL_MS", 500),
 		WorkerConcurrency:  getEnvInt("WORKER_CONCURRENCY", 10),
 		HeartbeatSec:       getEnvInt("HEARTBEAT_SEC", 10),

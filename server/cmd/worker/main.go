@@ -25,6 +25,12 @@ func main() {
 	_ = godotenv.Load() // optional: falls back to real env vars / defaults if .env is absent
 	cfg := config.Load()
 
+	orgID, err := uuid.Parse(cfg.WorkerOrgID)
+	if err != nil {
+		slog.Error("WORKER_ORG_ID must be set to a valid organization UUID — a worker now belongs to exactly one org, since it only claims that org's jobs", "error", err)
+		os.Exit(1)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -46,12 +52,12 @@ func main() {
 	execSvc := service.NewExecutionService(jobRepo, execRepo, logRepo, dlqRepo, queueRepo, policyRepo)
 
 	hostname, _ := os.Hostname()
-	w, err := workerRepo.Register(ctx, hostname)
+	w, err := workerRepo.Register(ctx, hostname, orgID)
 	if err != nil {
 		slog.Error("failed to register worker", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("worker registered", "worker_id", w.ID, "hostname", hostname, "concurrency", cfg.WorkerConcurrency)
+	slog.Info("worker registered", "worker_id", w.ID, "org_id", orgID, "hostname", hostname, "concurrency", cfg.WorkerConcurrency)
 
 	var activeJobs int64
 	var wg sync.WaitGroup
@@ -67,7 +73,7 @@ pollLoop:
 		case <-time.After(time.Duration(cfg.WorkerPollMS) * time.Millisecond):
 		}
 
-		queueIDs, err := activeQueueIDs(ctx, pool)
+		queueIDs, err := activeQueueIDs(ctx, pool, orgID)
 		if err != nil {
 			slog.Error("failed to list queues", "error", err)
 			continue
@@ -127,8 +133,14 @@ func sendHeartbeats(ctx context.Context, workerRepo *repository.WorkerRepository
 	}
 }
 
-func activeQueueIDs(ctx context.Context, pool *pgxpool.Pool) ([]uuid.UUID, error) {
-	rows, err := pool.Query(ctx, `SELECT id FROM queues WHERE is_paused = false ORDER BY priority DESC`)
+// activeQueueIDs only returns queues belonging to orgID — a worker now
+// serves exactly one organization, so it never claims another org's jobs.
+func activeQueueIDs(ctx context.Context, pool *pgxpool.Pool, orgID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT q.id FROM queues q
+		JOIN projects p ON p.id = q.project_id
+		WHERE q.is_paused = false AND p.org_id = $1
+		ORDER BY q.priority DESC`, orgID)
 	if err != nil {
 		return nil, err
 	}
