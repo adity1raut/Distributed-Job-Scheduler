@@ -37,6 +37,42 @@ npm run dev
 Requires the backend running (see [`../Readme.md`](../Readme.md)). The
 dashboard has nothing to render without it.
 
+## Testing
+
+```bash
+npm run lint
+```
+
+There's no automated test suite on the frontend (no Jest/Vitest, no
+component tests). Lint is the only automated check. For actually
+verifying the UI's behavior, walk through the checklist below against a
+running instance.
+
+## Verifying the Frontend UI
+
+`go test` and the API only prove the backend is correct. Neither touches
+the dashboard. With the API, a worker, and `npm run dev` running (see
+[Setup](#setup)), open the app and walk through this list. Each row is
+something to click, not just read.
+
+| Area | What to check |
+|---|---|
+| **Dropdowns** | Open the job-type selector (Jobs tab) or the status filter. It opens a themed popover menu that matches light/dark mode, not the browser's native OS-style option list. |
+| **Toasts** | Do anything that mutates state (create a project, submit a job, pause a queue). A toast slides in from the top-right with a colored left rule and a shrinking progress bar; hovering it pauses the auto-dismiss timer. |
+| **Confirm dialog** | Projects → **Delete** on a project card. A centered modal with a warning icon and a solid-red **Delete** button appears, not the browser's native `confirm()` popup. Escape or clicking outside cancels it. |
+| **Sidebar nav** | Overview / Projects / Workers each have an icon, and the active page is a filled amber pill, not just a text color change. |
+| **Section tabs** | On a queue's detail page, Jobs / Scheduled / Dead letters / Configuration render as a segmented pill control: the active tab sits raised on its own background inside a bordered track. |
+| **Auth tabs** | On `/login` or `/register`, a "Log in / Register" tab pair sits above the form and switches pages when clicked. |
+| **Tables** | Job/worker/queue listings have a filled header bar and roomy rows, not a cramped, thin-text grid. |
+| **Number fields** | Priority, concurrency, delay (ms), and batch-count inputs show no up/down spinner arrows, just plain numeric fields. |
+| **Scrollbars** | Open a dropdown with more options than fit (e.g. the status filter). The scrollbar is a thin, theme-colored bar, not the platform default. |
+| **Headings** | Page titles ("Overview", "Projects", a queue's name, "Job detail") are visibly larger and bolder than the body text under them. |
+
+For the underlying job-scheduling behavior itself (delays, concurrency
+limits, retries, dead-lettering, cron dispatch) rather than the UI chrome,
+follow the full click-by-click script in
+[`../WORKING.md`](../WORKING.md#part-2--verifying-it-all-yourself-locally-in-the-ui).
+
 ## Scripts
 
 | Command | Does |
@@ -102,3 +138,19 @@ src/
   go through `lib/confirm.js` + `ConfirmHost.jsx` instead of the
   browser's native `window.confirm()`, so they match the app's theme and
   can be dismissed with Escape or a click outside.
+- **Rate limiting and continuous polling — verified working.** The
+  dashboard is polling-heavy: a page like Overview alone runs five
+  independent `usePolling` calls (`getOverview` every 5s, plus
+  workers/throughput/project lists on their own intervals), each a
+  separate request against the API's per-org rate limiter
+  (`RATE_LIMIT_PER_MIN`, default 120/min, see
+  [`server/README.md`](../server/README.md#testing)). The limiter used to
+  reset its 60s window on *every* request instead of only the first one
+  in a window, so continuous polling kept pushing the expiry forward and
+  the count never reset — real dashboard usage would get wrongly stuck
+  on `429 rate limit exceeded` after a couple of minutes. That's fixed
+  server-side (`internal/middleware/ratelimit.go`); with the fix, leaving
+  the dashboard open and polling continuously across multiple tabs/pages
+  no longer trips a false rate limit. The frontend itself needed no
+  change — a `429` just surfaces through the normal `error` state /
+  toast path in `src/api/client.js`, same as any other API error.
