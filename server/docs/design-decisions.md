@@ -5,9 +5,8 @@ alone, so here's the reasoning behind them.
 
 ## Why Postgres claims jobs instead of a dedicated queue
 
-Workers grab jobs with a single `SELECT ... FOR UPDATE SKIP LOCKED`
-against the `jobs` table. Postgres itself is the queue; nothing else sits
-in front of it.
+Workers grab jobs directly from the `jobs` table. Postgres itself is the
+queue; nothing else sits in front of it.
 
 The upside: job state, retry history, and the rest of the application
 data all live in one transactional store, so there's nothing to keep in
@@ -16,15 +15,13 @@ exactly this purpose will out-scale it eventually. For what this system
 needs to handle, that ceiling is nowhere close, so it wasn't worth the
 extra moving part.
 
-This isn't just a claim on paper. `job_repository_concurrency_test.go`
-runs 50 simulated workers against 200 jobs and checks that every job
-gets claimed exactly once.
+This isn't just a claim on paper. A concurrency test simulates 50 workers
+racing for 200 jobs and checks that every job gets claimed exactly once.
 
 ## Concurrency limits lock the queue, not just the job
 
-`ClaimNext` locks the `queues` row itself (`FOR UPDATE`) before it counts
-in-flight jobs and claims the next one. That means the concurrency check
-and the claim happen as one atomic step per queue.
+Claiming a job and checking the queue's concurrency limit happen as one
+atomic step, not two separate checks that could race each other.
 
 The nice side effect: workers pulling from *different* queues never
 block each other. Only two workers hitting the *same* queue at the same
@@ -33,27 +30,27 @@ limit is supposed to do anyway.
 
 ## Executions get their own table
 
-A `jobs` row overwrites its own `status` every time it's retried. If
+A job's own row overwrites its own status every time it's retried. If
 that were the only record kept, there'd be no way to answer "what
 actually happened on attempt 2" once attempt 3 is underway. It would
 just be gone.
 
-`job_executions` fixes that: each attempt writes a new row with its own
-start time, finish time, and error. `job_logs` hangs off the execution,
-not the job, for the same reason: logs belong to one specific attempt.
+A separate execution table fixes that: each attempt writes its own row,
+with its own start time, finish time, and error. Logs hang off the
+execution, not the job, for the same reason: they belong to one specific
+attempt.
 
 ## The scheduler lives inside the API, not as its own service
 
-Cron dispatch is just a goroutine running inside every `cmd/api`
-replica, which is one less binary to build, deploy, and monitor. The
-obvious problem with that is if you run three API replicas, you don't
-want three schedulers firing the same cron job three times.
+Cron dispatch is just a background routine running inside every API
+replica, which is one less thing to build, deploy, and monitor. The
+obvious problem: if you run three API replicas, you don't want three
+schedulers firing the same cron job three times.
 
-The fix is a Postgres advisory lock. Each tick, the goroutine calls
-`pg_try_advisory_lock` first. Whichever replica gets it does the work
-that cycle, and the rest just skip and try again next tick. It's a
-distributed lock with zero extra infrastructure, since Postgres already
-happens to be sitting right there.
+The fix is a database-level lock. Each tick, whichever replica grabs it
+first does the work that cycle, and the rest just skip and try again next
+tick. It's a distributed lock with zero extra infrastructure, since
+Postgres is already sitting right there.
 
 ## Rate limiting through Redis, not memory
 
@@ -67,21 +64,21 @@ smaller problem than the whole API going down because of it.
 
 ## Structured errors and cursor-based pagination
 
-Every error response comes back as `{"error": {"code", "message",
-"request_id"}}`, from every handler, no exceptions. The frontend can
-switch on `code` instead of trying to pattern-match error strings.
+Every error response comes back in the same shape, from every handler,
+no exceptions, so the frontend can switch on an error code instead of
+trying to pattern-match error strings.
 
-Job listings paginate with a cursor over `(created_at, id)` instead of
-the usual `OFFSET`. It's a small thing until the `jobs` table has a few
-million rows, at which point `OFFSET` gets slower the deeper you page,
-and a cursor doesn't.
+Job listings paginate with a cursor instead of the usual page-number
+offset. It's a small thing until the jobs table has a few million rows,
+at which point offset-based paging gets slower the deeper you page, and a
+cursor doesn't.
 
 ## Two binaries, one shared package
 
-`cmd/api` and `cmd/worker` build separately so they can scale
-independently. More API traffic doesn't mean you need more workers, and
-vice versa. They still share every model and repository through
-`internal/`, so there's no duplicated logic between them.
+The API and the worker build separately so they can scale independently.
+More API traffic doesn't mean you need more workers, and vice versa.
+They still share the same models and data-access code, so there's no
+duplicated logic between them.
 
 ## Deletes cascade, for now
 
@@ -91,97 +88,67 @@ for.
 
 The honest trade-off: it also deletes the audit trail along with the
 data. If this were going into a setting where you need to keep records
-after someone deletes a project (compliance, billing disputes, that
-kind of thing), the fix is a `deleted_at` column instead of a real
-delete. Flagging it here rather than building it, since nothing in the
-brief calls for it yet.
+after someone deletes a project (compliance, billing disputes, that kind
+of thing), the fix is marking rows as deleted instead of actually
+removing them. Flagging it here rather than building it, since nothing
+in the brief calls for it yet.
 
 ## Role-based access control is enforced but not yet reachable
 
-`users.role` (`owner` / `admin` / `member`) has existed in the schema
-and the JWT since the start, but nothing ever actually checked it.
-`FORBIDDEN` was a documented error code with no code path that returned
-it. Destructive routes (`DELETE /projects/{id}`, `DELETE /queues/{id}`)
-now go through `middleware.RequireRole(owner, admin)`, so a `member`
-gets a real `403 FORBIDDEN` instead of silently having full access.
+User roles (`owner` / `admin` / `member`) have existed since the start,
+but nothing ever actually checked them. Destructive actions like
+deleting a project or a queue now require an `owner` or `admin` role, so
+a `member` gets a real permission error instead of silently having full
+access.
 
-The honest gap: there's no invite/add-teammate endpoint yet, and
-`POST /api/auth/register` always creates the registering user as
-`owner`. So today, every user in every org is an `owner`. The gate is
-real and tested, but a `member` account can only exist if one is
-inserted directly, which is exactly how the test for this exercises it.
-Adding a real invite flow that lets an `owner` add teammates at
-`admin`/`member` was out of scope here. Flagging it rather than building
-a half-finished invite UI to check a box.
+The honest gap: there's no invite/add-teammate flow yet, and registering
+always creates the registering user as `owner`. So today, every user in
+every org is an `owner`. The permission check is real and tested, but a
+`member` account can only exist if one is inserted directly into the
+database. Adding a real invite flow that lets an owner add teammates at
+lower roles was out of scope here. Flagging it rather than building a
+half-finished invite UI to check a box.
 
 ## Workers belong to exactly one organization
 
-Workers used to be one fleet shared across every org in the database.
-Any worker process could claim any org's jobs, and the dashboard's
-worker list leaked every org's hostnames to every other org.
-`workers.org_id` (added in `000002_worker_org_scoping`) fixes both:
-`cmd/worker` now requires `WORKER_ORG_ID` at startup, only discovers and
-claims that org's queues, and every worker-facing endpoint filters by
-the requester's org.
+Workers used to be one fleet shared across every organization in the
+database: any worker process could claim any org's jobs, and the
+dashboard's worker list leaked every org's hostnames to every other org.
+Now a worker must be started with an organization ID and only ever
+discovers and claims that org's queues, and every worker-facing endpoint
+filters by the requester's org.
 
-The column is nullable at the schema level even though the application
-always sets it on new rows. Existing worker rows from before this
-migration have no org they can be correctly backfilled to, and deleting
-them would cascade-delete their `job_executions` and `job_logs` history.
-They simply stop matching any org-scoped query instead, which is
-equivalent to retiring them.
+The real cost: this is no longer "start one worker, it serves everyone."
+Each organization now needs its own worker process(es). That's the
+correct trade-off for genuine multi-tenant isolation, but it does mean
+the local dev setup grew one more required step.
 
-The real cost: this is no longer "start one worker, it serves
-everyone." Each organization now needs its own worker process(es)
-pointed at its own `WORKER_ORG_ID`. That's the correct trade-off for
-genuine multi-tenant isolation, but it does mean the local dev setup in
-the README grew one more required step.
+## Every resource below a project is scoped by organization, not just the project
 
-## Every resource below Project is scoped by org_id, not just Project
-
-`projects.org_id` was always checked, but a queue, job, scheduled job,
-or dead-letter entry has no `org_id` column of its own, and every
-repository method that started from one of their IDs (`GetByID`,
-`Retry`, `SetActive`, `ListByQueue`, ...) trusted the ID alone. In
+The organization check on a project was always there, but a queue, job,
+scheduled job, or dead-letter entry had no organization of its own, and
+every lookup that started from one of those IDs trusted the ID alone. In
 practice that meant any authenticated user, in any organization, could
 read or mutate any other org's queues, jobs, execution logs, scheduled
-jobs, and dead-letter entries just by knowing (or guessing/enumerating)
-a UUID. A textbook IDOR / broken access control gap, and the one place
-the multi-tenancy story didn't actually hold end-to-end.
+jobs, and dead-letter entries just by knowing (or guessing) an ID. A
+textbook broken-access-control gap, and the one place the multi-tenancy
+story didn't actually hold end-to-end.
 
-The fix threads `orgID` from the JWT down through handler, service, and
-repository for every one of those lookups, resolving org ownership via a
-join back to `projects` (`queues.project_id → projects.org_id`, and one
-join further for jobs/scheduled jobs/dead-letter entries). A mismatched
-org now returns the same `404 NOT_FOUND` as a nonexistent ID: cross-org
-access is indistinguishable from "that thing doesn't exist," which is
-the correct behavior for both cases.
+The fix threads the caller's organization down through every one of
+those lookups, resolving ownership by tracing back to the parent project.
+A mismatched organization now returns the same "not found" response as a
+nonexistent ID: cross-org access is indistinguishable from "that thing
+doesn't exist," which is the correct behavior for both cases.
 
-One query needed a second look even after adding the join.
-`QueueRepository.Stats` aggregates with `count(*) FILTER (...)` and no
-`GROUP BY`, and an aggregate with no `GROUP BY` always returns exactly
-one row, even when the `WHERE` clause matches zero rows. Scoping that
-query by org directly would have kept returning `200` with all-zero
-counts for a foreign queue instead of `404`. The fix follows the same
-pattern already used for `DLQService.List` and `ScheduledJobService.List`:
-verify ownership with `QueueRepository.GetByID` first, then run the
-aggregate, now org-unscoped since ownership is already established.
+The worker's own execution pipeline is deliberately left unscoped. It has
+no request context to scope by, and a worker only ever claims jobs from
+its own organization's queues in the first place, so there's no
+cross-tenant path through it to close.
 
-The worker's own execution pipeline (`ExecutionService`) is deliberately
-left unscoped. It has no HTTP-request org context, and a worker only
-ever claims jobs from its own org's queues in the first place (see
-`activeQueueIDs` in `cmd/worker`), so there's no cross-tenant path
-through it to close. Those call sites go through
-`QueueRepository.GetByIDInternal` and
-`RetryPolicyRepository.GetByIDInternal`, explicitly named to flag that
-they skip the org check and are only safe for that trusted internal
-caller.
-
-Covered by `TestRouter_CrossOrgAccess_Returns404` in `router_test.go`,
-which registers two unrelated orgs and asserts a `404` for every one of
-these endpoints when org B reaches for org A's queue, job, scheduled
-job, or dead-letter entry, plus that org A can still reach its own
-resources afterward.
+A test covers this directly: it registers two unrelated organizations and
+confirms one gets a "not found" response reaching for the other's queue,
+job, scheduled job, or dead-letter entry, while still being able to reach
+its own resources.
 
 ## How it all fits together
 
