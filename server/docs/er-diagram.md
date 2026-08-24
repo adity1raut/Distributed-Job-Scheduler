@@ -60,7 +60,7 @@ worker heartbeats cascading with their parent row. That's the right
 default here: an execution log with no job to belong to isn't useful to
 anyone. The trade-off is that deleting a project takes its whole audit
 history with it, which is fine for this brief but flagged in
-[design-decisions.md](design-decisions.md) as the first thing to change
+**[design-decisions.md](design-decisions.md)** as the first thing to change
 (to a soft-delete) if this ever needed to hold onto records for
 compliance reasons.
 

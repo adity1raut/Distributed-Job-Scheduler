@@ -4,13 +4,13 @@ A production-inspired distributed job scheduling platform for reliably executing
 
 ## Contents
 
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Setup](#setup)
-- [Testing](#testing)
-- [Rolling Back Migrations](#rolling-back-migrations)
-- [Documentation](#documentation)
+- **[Tech Stack](#tech-stack)**
+- **[Architecture](#architecture)**
+- **[Project Structure](#project-structure)**
+- **[Setup](#setup)**
+- **[Testing](#testing)**
+- **[Rolling Back Migrations](#rolling-back-migrations)**
+- **[Documentation](#documentation)**
 
 ## Tech Stack
 
@@ -38,7 +38,7 @@ This split mirrors a real deployment, where the API and each org's worker fleet 
 ![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; two separate per-org worker fleets each poll PostgreSQL to claim only their own organization's jobs with SELECT FOR UPDATE SKIP LOCKED and send heartbeats.](server/docs/images/architecture.png)
 
 The job lifecycle state machine lives in the
-[backend architecture doc](server/docs/architecture.md).
+**[backend architecture doc](server/docs/architecture.md)**.
 
 
 ## Project Structure
@@ -129,7 +129,7 @@ From `server/`:
 go test ./...
 ```
 
-See the [backend doc](server.md#testing) for what runs
+See the **[backend doc](server.md#testing)** for what runs
 unconditionally vs. what needs a real Postgres/Redis, and how to point
 tests at a throwaway database.
 
@@ -151,10 +151,10 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 
 | Doc | Covers |
 |---|---|
-| [`server.md`](server.md) | Backend structure, `cmd/`/`internal/` breakdown |
-| [`server/docs/architecture.md`](server/docs/architecture.md) | Component diagram, job lifecycle state machine |
-| [`server/docs/er-diagram.md`](server/docs/er-diagram.md) | Full ER diagram, keys, indexes, cascade behavior |
-| [`server/docs/api.md`](server/docs/api.md) | Every REST endpoint: request/response shapes, error codes, pagination |
-| [`server/docs/design-decisions.md`](server/docs/design-decisions.md) | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
-| [`ui_interface.md`](ui_interface.md) | Frontend feature list, structure, env vars |
-| [`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md) | Registering an org, starting a worker, creating a project/queue, all four job types, cron schedules, concurrency |
+| **[`server.md`](server.md)** | Backend structure, `cmd/`/`internal/` breakdown |
+| **[`server/docs/architecture.md`](server/docs/architecture.md)** | Component diagram, job lifecycle state machine |
+| **[`server/docs/er-diagram.md`](server/docs/er-diagram.md)** | Full ER diagram, keys, indexes, cascade behavior |
+| **[`server/docs/api.md`](server/docs/api.md)** | Every REST endpoint: request/response shapes, error codes, pagination |
+| **[`server/docs/design-decisions.md`](server/docs/design-decisions.md)** | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
+| **[`ui_interface.md`](ui_interface.md)** | Frontend feature list, structure, env vars |
+| **[`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md)** | Registering an org, starting a worker, creating a project/queue, all four job types, cron schedules, concurrency |

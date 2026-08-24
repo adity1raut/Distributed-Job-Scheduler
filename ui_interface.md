@@ -1,6 +1,6 @@
 # Job Scheduler Dashboard
 
-React dashboard for the [Distributed Job Scheduler](Readme.md). Manage
+React dashboard for the **[Distributed Job Scheduler](Readme.md)**. Manage
 projects and queues, submit and inspect jobs, watch execution logs, and
 monitor the worker fleet, all live against the Go API. Lives under
 `ui-interface/`.
@@ -38,7 +38,7 @@ npm run dev
 
 Open the URL Vite prints (default `http://localhost:5173`). Requires
 Postgres, Redis, and the API already running; see the root
-[`Readme.md`](Readme.md#setup) for that. The dashboard has nothing
+**[`Readme.md`](Readme.md#setup)** for that. The dashboard has nothing
 to render without a running API.
 
 That's enough to load the app, but not enough to see a job actually run,
@@ -46,7 +46,7 @@ for registering an org, starting a `cmd/worker` for it, creating your
 first project/queue, submitting each of the four job types and watching
 how they perform (retries, dead-lettering, cron schedules, concurrency),
 and running more than one org at once, see the
-[getting-started guide](ui-interface/docs/getting-started.md).
+**[getting-started guide](ui-interface/docs/getting-started.md)**.
 
 ## Testing
 
@@ -65,7 +65,7 @@ running instance.
 
 `go test` and the API only prove the backend is correct. Neither touches
 the dashboard. With the API, a worker, and `npm run dev` running (see
-[Setup](#setup)), open the app and walk through this list. Each row is
+**[Setup](#setup)**), open the app and walk through this list. Each row is
 something to click, not just read.
 
 | Area | What to check |
@@ -84,8 +84,8 @@ something to click, not just read.
 For the underlying job-scheduling behavior itself (delays, concurrency
 limits, retries, dead-lettering, cron dispatch) rather than the UI chrome,
 follow the full click-by-click script in the same
-[getting-started guide](ui-interface/docs/getting-started.md), backed by
-the mechanics in the [backend architecture doc](server/docs/architecture.md).
+**[getting-started guide](ui-interface/docs/getting-started.md)**, backed by
+the mechanics in the **[backend architecture doc](server/docs/architecture.md)**.
 
 ## Scripts
 
@@ -137,7 +137,7 @@ ui-interface/src/
 
 | Doc | Covers |
 |---|---|
-| [`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md) | Registering an org, starting a worker, creating a project/queue, all four job types and how they perform, cron schedules, concurrency, running more than one org at once |
+| **[`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md)** | Registering an org, starting a worker, creating a project/queue, all four job types and how they perform, cron schedules, concurrency, running more than one org at once |
 
 ## Notes
 
@@ -164,7 +164,7 @@ ui-interface/src/
   workers/throughput/project lists on their own intervals), each a
   separate request against the API's per-org rate limiter
   (`RATE_LIMIT_PER_MIN`, default 120/min, see the
-  [backend testing notes](server.md#testing)). The limiter used to reset its 60s
+  **[backend testing notes](server.md#testing)**). The limiter used to reset its 60s
   window on *every* request instead of only the first one in a window,
   so continuous polling kept pushing the expiry forward and the count
   never reset, so real dashboard usage would get wrongly stuck on `429
