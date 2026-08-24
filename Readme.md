@@ -37,8 +37,8 @@ This split mirrors a real deployment, where the API and each org's worker fleet 
 
 ![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; two separate per-org worker fleets each poll PostgreSQL to claim only their own organization's jobs with SELECT FOR UPDATE SKIP LOCKED and send heartbeats.](server/docs/images/architecture.png)
 
-The job lifecycle state machine lives in
-[`server/docs/architecture.md`](server/docs/architecture.md).
+The job lifecycle state machine lives in the
+[backend architecture doc](server/docs/architecture.md).
 
 
 ## Project Structure
@@ -129,7 +129,7 @@ From `server/`:
 go test ./...
 ```
 
-See [`server.md`](server.md#testing) for what runs
+See the [backend doc](server.md#testing) for what runs
 unconditionally vs. what needs a real Postgres/Redis, and how to point
 tests at a throwaway database.
 

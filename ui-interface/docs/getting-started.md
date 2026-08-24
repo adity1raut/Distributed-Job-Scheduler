@@ -2,8 +2,8 @@
 
 Full walkthrough for going from a fresh checkout to a project, a queue,
 and a worker actually running jobs for it. See
-[`../../ui_interface.md`](../../ui_interface.md) for the feature list and
-structure; this doc is just the step-by-step.
+[the frontend overview](../../ui_interface.md) for the feature list and
+structure — this doc is just the step-by-step.
 
 ## 1. Install and run
 
@@ -14,8 +14,8 @@ npm run dev
 ```
 
 Open the URL Vite prints (default `http://localhost:5173`). Requires
-Postgres, Redis, and the API already running — see the root
-[`../../Readme.md`](../../Readme.md#setup) for that. The dashboard has
+Postgres, Redis, and the API already running — see the
+[root setup guide](../../Readme.md#setup) for that. The dashboard has
 nothing to render without a running API.
 
 ## 2. Register and start a worker
@@ -136,9 +136,9 @@ the most convincing one to actually watch happen:
    5-job batch with the same payload. You should see more running at
    once this time, bounded by how many `cmd/worker` processes you have
    (each one polls and claims independently, up to `WORKER_CONCURRENCY`
-   — default 10 — jobs per process). Start another worker terminal
-   (`WORKER_ORG_ID=<org-id> go run ./cmd/worker` again) mid-run and
-   watch the running count able to climb further on the next batch —
+   — default 10 — jobs per process). Start another worker terminal with
+   the same command from [step 2](#2-register-and-start-a-worker) mid-run
+   and watch the running count able to climb further on the next batch —
    that's horizontal scaling adding throughput live.
 5. Toggle **Pause queue**: submit one more job, confirm it sits `queued`
    forever and never gets claimed (workers actively skip paused
@@ -192,22 +192,21 @@ for the exact counts.
 3. Back in your original org, deleting a project/queue as normal still
    works, because the account that registered an org is always its
    `owner`. There's no invite flow yet to create a `member` account
-   through the UI (see
-   [`../../server/docs/design-decisions.md`](../../server/docs/design-decisions.md#role-based-access-control-is-enforced-but-not-yet-reachable)),
+   through the UI (see the
+   [RBAC design note](../../server/docs/design-decisions.md#role-based-access-control-is-enforced-but-not-yet-reachable)),
    so the `403` path for a non-owner isn't click-through-able today —
    it's covered by automated tests instead:
    ```bash
-   TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobscheduler?sslmode=disable" \
-     go test ./internal/handler/... -run TestRouter_DeleteProject_RoleGate -v
-   TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobscheduler?sslmode=disable" \
-     go test ./internal/handler/... -run TestRouter_CrossOrgAccess_Returns404 -v
+   export TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobscheduler?sslmode=disable"
+   go test ./internal/handler/... -run TestRouter_DeleteProject_RoleGate -v
+   go test ./internal/handler/... -run TestRouter_CrossOrgAccess_Returns404 -v
    ```
    (run from `server/`; point `TEST_DATABASE_URL` at a throwaway
    database if you don't want test fixtures landing in your real one)
 
 For the deeper mechanics behind all of this (why `SELECT ... FOR UPDATE
 SKIP LOCKED`, how backoff is computed, the advisory-lock scheduler), see
-[`../../server/docs/architecture.md`](../../server/docs/architecture.md).
+the [backend architecture doc](../../server/docs/architecture.md).
 
 ## Troubleshooting
 
@@ -222,20 +221,13 @@ SKIP LOCKED`, how backoff is computed, the advisory-lock scheduler), see
 ## Running more than one org at once
 
 Each `cmd/worker` process is scoped to exactly **one** org via
-`WORKER_ORG_ID` — deliberate multi-tenant isolation (see
-[`../../server/docs/design-decisions.md`](../../server/docs/design-decisions.md#workers-belong-to-exactly-one-organization)),
+`WORKER_ORG_ID` — deliberate multi-tenant isolation (see the
+[worker org-scoping design note](../../server/docs/design-decisions.md#workers-belong-to-exactly-one-organization)),
 not a limitation to work around. If you register a second org and want
-its jobs to run too, start a second worker in another terminal with that
-org's ID:
-
-```bash
-# org A
-WORKER_ORG_ID=<org-a-id> go run ./cmd/worker
-
-# org B — separate terminal, runs alongside org A's worker with no conflict
-WORKER_ORG_ID=<org-b-id> go run ./cmd/worker
-```
+its jobs to run too, repeat the [step 2](#2-register-and-start-a-worker)
+worker command in another terminal with that org's ID instead — one
+terminal per org, each running alongside the others with no conflict.
 
 One `cmd/api` instance already serves every org — only `cmd/worker` is
-org-scoped, so you never need a second API process, just a second
-worker.
+org-scoped, so you never need a second API process, just one worker
+terminal per org.

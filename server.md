@@ -5,10 +5,10 @@ independent binaries (`cmd/api`, `cmd/worker`) sharing a common
 `internal/` package, backed by PostgreSQL (`SELECT ... FOR UPDATE SKIP
 LOCKED` job claiming) and Redis (rate limiting). Lives under `server/`.
 
-For setup and running instructions, see the root
-[`Readme.md`](Readme.md) — [Setup](Readme.md#setup) and
-[Rolling Back Migrations](Readme.md#rolling-back-migrations) live
-there since the API, worker, and frontend are started together.
+For setup and running instructions, see the
+[project README](Readme.md) — its [Setup](Readme.md#setup) and
+[Rolling Back Migrations](Readme.md#rolling-back-migrations) sections
+cover this, since the API, worker, and frontend are started together.
 
 ## Structure
 
