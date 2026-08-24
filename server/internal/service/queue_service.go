@@ -78,8 +78,8 @@ func (s *QueueService) List(ctx context.Context, orgID, projectID uuid.UUID) ([]
 	return queues, nil
 }
 
-func (s *QueueService) Get(ctx context.Context, id uuid.UUID) (*models.Queue, error) {
-	queue, err := s.queues.GetByID(ctx, id)
+func (s *QueueService) Get(ctx context.Context, orgID, id uuid.UUID) (*models.Queue, error) {
+	queue, err := s.queues.GetByID(ctx, orgID, id)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return nil, apperr.NotFound("queue")
@@ -95,8 +95,8 @@ type UpdateQueueInput struct {
 	RetryPolicyID    *uuid.UUID
 }
 
-func (s *QueueService) UpdateConfig(ctx context.Context, id uuid.UUID, in UpdateQueueInput) (*models.Queue, error) {
-	queue, err := s.queues.UpdateConfig(ctx, id, in.Priority, in.ConcurrencyLimit, in.RetryPolicyID)
+func (s *QueueService) UpdateConfig(ctx context.Context, orgID, id uuid.UUID, in UpdateQueueInput) (*models.Queue, error) {
+	queue, err := s.queues.UpdateConfig(ctx, orgID, id, in.Priority, in.ConcurrencyLimit, in.RetryPolicyID)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return nil, apperr.NotFound("queue")
@@ -106,8 +106,8 @@ func (s *QueueService) UpdateConfig(ctx context.Context, id uuid.UUID, in Update
 	return queue, nil
 }
 
-func (s *QueueService) SetPaused(ctx context.Context, id uuid.UUID, paused bool) error {
-	if err := s.queues.SetPaused(ctx, id, paused); err != nil {
+func (s *QueueService) SetPaused(ctx context.Context, orgID, id uuid.UUID, paused bool) error {
+	if err := s.queues.SetPaused(ctx, orgID, id, paused); err != nil {
 		if err == repository.ErrNotFound {
 			return apperr.NotFound("queue")
 		}
@@ -116,8 +116,8 @@ func (s *QueueService) SetPaused(ctx context.Context, id uuid.UUID, paused bool)
 	return nil
 }
 
-func (s *QueueService) Delete(ctx context.Context, id uuid.UUID) error {
-	if err := s.queues.Delete(ctx, id); err != nil {
+func (s *QueueService) Delete(ctx context.Context, orgID, id uuid.UUID) error {
+	if err := s.queues.Delete(ctx, orgID, id); err != nil {
 		if err == repository.ErrNotFound {
 			return apperr.NotFound("queue")
 		}
@@ -126,7 +126,14 @@ func (s *QueueService) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (s *QueueService) Stats(ctx context.Context, id uuid.UUID) (*models.QueueStats, error) {
+// Stats verifies the queue belongs to the caller's org first — see QueueRepository.Stats for why.
+func (s *QueueService) Stats(ctx context.Context, orgID, id uuid.UUID) (*models.QueueStats, error) {
+	if _, err := s.queues.GetByID(ctx, orgID, id); err != nil {
+		if err == repository.ErrNotFound {
+			return nil, apperr.NotFound("queue")
+		}
+		return nil, apperr.Internal("failed to verify queue")
+	}
 	stats, err := s.queues.Stats(ctx, id)
 	if err != nil {
 		return nil, apperr.Internal("failed to compute queue stats")

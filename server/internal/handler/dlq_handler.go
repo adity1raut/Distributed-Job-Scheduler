@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/adity1raut/job-scheduler/internal/httpx"
+	"github.com/adity1raut/job-scheduler/internal/middleware"
 	"github.com/adity1raut/job-scheduler/internal/service"
 )
 
@@ -21,7 +22,8 @@ func (h *DLQHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	entries, err := h.dlq.List(r.Context(), queueID, queryInt(r, "limit", 50))
+	orgID := middleware.OrgIDFromContext(r.Context())
+	entries, err := h.dlq.List(r.Context(), orgID, queueID, queryInt(r, "limit", 50))
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -35,7 +37,8 @@ func (h *DLQHandler) Replay(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	job, err := h.dlq.Replay(r.Context(), id)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	job, err := h.dlq.Replay(r.Context(), orgID, id)
 	if err != nil {
 		writeErr(w, r, err)
 		return

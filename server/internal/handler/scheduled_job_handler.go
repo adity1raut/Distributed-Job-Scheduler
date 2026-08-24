@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/adity1raut/job-scheduler/internal/httpx"
+	"github.com/adity1raut/job-scheduler/internal/middleware"
 	"github.com/adity1raut/job-scheduler/internal/service"
 )
 
@@ -33,7 +34,8 @@ func (h *ScheduledJobHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sj, err := h.scheduledJobs.Create(r.Context(), queueID, req.CronExpression, req.PayloadTemplate)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	sj, err := h.scheduledJobs.Create(r.Context(), orgID, queueID, req.CronExpression, req.PayloadTemplate)
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -47,7 +49,8 @@ func (h *ScheduledJobHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	list, err := h.scheduledJobs.List(r.Context(), queueID)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	list, err := h.scheduledJobs.List(r.Context(), orgID, queueID)
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -69,7 +72,8 @@ func (h *ScheduledJobHandler) setActive(w http.ResponseWriter, r *http.Request, 
 		writeErr(w, r, err)
 		return
 	}
-	if err := h.scheduledJobs.SetActive(r.Context(), id, active); err != nil {
+	orgID := middleware.OrgIDFromContext(r.Context())
+	if err := h.scheduledJobs.SetActive(r.Context(), orgID, id, active); err != nil {
 		writeErr(w, r, err)
 		return
 	}

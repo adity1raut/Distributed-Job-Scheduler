@@ -51,7 +51,7 @@ func NewTestRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	jobSvc := service.NewJobService(jobRepo, queueRepo, execRepo, logRepo, policyRepo)
 	scheduledJobSvc := service.NewScheduledJobService(scheduledJobRepo, queueRepo)
 	workerSvc := service.NewWorkerService(workerRepo, 60)
-	dlqSvc := service.NewDLQService(dlqRepo, jobRepo)
+	dlqSvc := service.NewDLQService(dlqRepo, jobRepo, queueRepo)
 	dashboardSvc := service.NewDashboardService(pool)
 
 	return handler.NewRouter(handler.Dependencies{

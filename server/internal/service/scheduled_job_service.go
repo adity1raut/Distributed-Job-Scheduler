@@ -21,8 +21,8 @@ func NewScheduledJobService(scheduledJobs *repository.ScheduledJobRepository, qu
 	return &ScheduledJobService{scheduledJobs: scheduledJobs, queues: queues}
 }
 
-func (s *ScheduledJobService) Create(ctx context.Context, queueID uuid.UUID, cronExpr string, payloadTemplate json.RawMessage) (*models.ScheduledJob, error) {
-	if _, err := s.queues.GetByID(ctx, queueID); err != nil {
+func (s *ScheduledJobService) Create(ctx context.Context, orgID, queueID uuid.UUID, cronExpr string, payloadTemplate json.RawMessage) (*models.ScheduledJob, error) {
+	if _, err := s.queues.GetByID(ctx, orgID, queueID); err != nil {
 		if err == repository.ErrNotFound {
 			return nil, apperr.NotFound("queue")
 		}
@@ -49,7 +49,14 @@ func (s *ScheduledJobService) Create(ctx context.Context, queueID uuid.UUID, cro
 	return sj, nil
 }
 
-func (s *ScheduledJobService) List(ctx context.Context, queueID uuid.UUID) ([]models.ScheduledJob, error) {
+// List verifies the queue belongs to the caller's org first.
+func (s *ScheduledJobService) List(ctx context.Context, orgID, queueID uuid.UUID) ([]models.ScheduledJob, error) {
+	if _, err := s.queues.GetByID(ctx, orgID, queueID); err != nil {
+		if err == repository.ErrNotFound {
+			return nil, apperr.NotFound("queue")
+		}
+		return nil, apperr.Internal("failed to verify queue")
+	}
 	list, err := s.scheduledJobs.ListByQueue(ctx, queueID)
 	if err != nil {
 		return nil, apperr.Internal("failed to list scheduled jobs")
@@ -57,8 +64,8 @@ func (s *ScheduledJobService) List(ctx context.Context, queueID uuid.UUID) ([]mo
 	return list, nil
 }
 
-func (s *ScheduledJobService) SetActive(ctx context.Context, id uuid.UUID, active bool) error {
-	if err := s.scheduledJobs.SetActive(ctx, id, active); err != nil {
+func (s *ScheduledJobService) SetActive(ctx context.Context, orgID, id uuid.UUID, active bool) error {
+	if err := s.scheduledJobs.SetActive(ctx, orgID, id, active); err != nil {
 		if err == repository.ErrNotFound {
 			return apperr.NotFound("scheduled job")
 		}

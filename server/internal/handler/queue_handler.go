@@ -72,7 +72,8 @@ func (h *QueueHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	queue, err := h.queues.Get(r.Context(), id)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	queue, err := h.queues.Get(r.Context(), orgID, id)
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -98,7 +99,8 @@ func (h *QueueHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queue, err := h.queues.UpdateConfig(r.Context(), id, service.UpdateQueueInput{
+	orgID := middleware.OrgIDFromContext(r.Context())
+	queue, err := h.queues.UpdateConfig(r.Context(), orgID, id, service.UpdateQueueInput{
 		Priority:         req.Priority,
 		ConcurrencyLimit: req.ConcurrencyLimit,
 		RetryPolicyID:    req.RetryPolicyID,
@@ -124,7 +126,8 @@ func (h *QueueHandler) setPaused(w http.ResponseWriter, r *http.Request, paused 
 		writeErr(w, r, err)
 		return
 	}
-	if err := h.queues.SetPaused(r.Context(), id, paused); err != nil {
+	orgID := middleware.OrgIDFromContext(r.Context())
+	if err := h.queues.SetPaused(r.Context(), orgID, id, paused); err != nil {
 		writeErr(w, r, err)
 		return
 	}
@@ -137,7 +140,8 @@ func (h *QueueHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	stats, err := h.queues.Stats(r.Context(), id)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	stats, err := h.queues.Stats(r.Context(), orgID, id)
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -151,7 +155,8 @@ func (h *QueueHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	if err := h.queues.Delete(r.Context(), id); err != nil {
+	orgID := middleware.OrgIDFromContext(r.Context())
+	if err := h.queues.Delete(r.Context(), orgID, id); err != nil {
 		writeErr(w, r, err)
 		return
 	}

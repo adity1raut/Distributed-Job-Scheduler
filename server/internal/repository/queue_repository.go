@@ -29,7 +29,28 @@ func (r *QueueRepository) Create(ctx context.Context, q *models.Queue) (*models.
 	return pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[models.Queue])
 }
 
-func (r *QueueRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Queue, error) {
+// GetByID joins to projects to scope by orgID — a queue has no org_id column of its own.
+func (r *QueueRepository) GetByID(ctx context.Context, orgID, id uuid.UUID) (*models.Queue, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT q.id, q.project_id, q.retry_policy_id, q.name, q.priority, q.concurrency_limit, q.is_paused, q.created_at
+		 FROM queues q
+		 JOIN projects p ON p.id = q.project_id
+		 WHERE q.id = $1 AND p.org_id = $2`, id, orgID)
+	if err != nil {
+		return nil, err
+	}
+	q, err := pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[models.Queue])
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return q, nil
+}
+
+// GetByIDInternal skips the org check — trusted-internal use only (ExecutionService), mirrors RetryPolicyRepository.GetByIDInternal.
+func (r *QueueRepository) GetByIDInternal(ctx context.Context, id uuid.UUID) (*models.Queue, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, project_id, retry_policy_id, name, priority, concurrency_limit, is_paused, created_at
 		 FROM queues WHERE id = $1`, id)
@@ -56,15 +77,17 @@ func (r *QueueRepository) ListByProject(ctx context.Context, projectID uuid.UUID
 	return pgx.CollectRows(rows, pgx.RowToStructByName[models.Queue])
 }
 
-func (r *QueueRepository) UpdateConfig(ctx context.Context, id uuid.UUID, priority, concurrencyLimit *int, retryPolicyID *uuid.UUID) (*models.Queue, error) {
+func (r *QueueRepository) UpdateConfig(ctx context.Context, orgID, id uuid.UUID, priority, concurrencyLimit *int, retryPolicyID *uuid.UUID) (*models.Queue, error) {
 	rows, err := r.pool.Query(ctx,
 		`UPDATE queues SET
-		   priority = COALESCE($2, priority),
-		   concurrency_limit = COALESCE($3, concurrency_limit),
-		   retry_policy_id = COALESCE($4, retry_policy_id)
-		 WHERE id = $1
-		 RETURNING id, project_id, retry_policy_id, name, priority, concurrency_limit, is_paused, created_at`,
-		id, priority, concurrencyLimit, retryPolicyID)
+		   priority = COALESCE($3, priority),
+		   concurrency_limit = COALESCE($4, concurrency_limit),
+		   retry_policy_id = COALESCE($5, retry_policy_id)
+		 FROM projects
+		 WHERE queues.id = $1 AND projects.id = queues.project_id AND projects.org_id = $2
+		 RETURNING queues.id, queues.project_id, queues.retry_policy_id, queues.name,
+		           queues.priority, queues.concurrency_limit, queues.is_paused, queues.created_at`,
+		id, orgID, priority, concurrencyLimit, retryPolicyID)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +101,12 @@ func (r *QueueRepository) UpdateConfig(ctx context.Context, id uuid.UUID, priori
 	return q, nil
 }
 
-func (r *QueueRepository) SetPaused(ctx context.Context, id uuid.UUID, paused bool) error {
-	tag, err := r.pool.Exec(ctx, `UPDATE queues SET is_paused = $2 WHERE id = $1`, id, paused)
+func (r *QueueRepository) SetPaused(ctx context.Context, orgID, id uuid.UUID, paused bool) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE queues SET is_paused = $3
+		FROM projects
+		WHERE queues.id = $1 AND projects.id = queues.project_id AND projects.org_id = $2`,
+		id, orgID, paused)
 	if err != nil {
 		return err
 	}
@@ -89,8 +116,12 @@ func (r *QueueRepository) SetPaused(ctx context.Context, id uuid.UUID, paused bo
 	return nil
 }
 
-func (r *QueueRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM queues WHERE id = $1`, id)
+func (r *QueueRepository) Delete(ctx context.Context, orgID, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		DELETE FROM queues
+		USING projects
+		WHERE queues.id = $1 AND projects.id = queues.project_id AND projects.org_id = $2`,
+		id, orgID)
 	if err != nil {
 		return err
 	}
@@ -100,6 +131,8 @@ func (r *QueueRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// Stats is org-unscoped by design: an aggregate with no GROUP BY always returns one row, so it
+// can't signal "not found" for a foreign queue — the caller must verify ownership via GetByID first.
 func (r *QueueRepository) Stats(ctx context.Context, id uuid.UUID) (*models.QueueStats, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT
@@ -114,5 +147,9 @@ func (r *QueueRepository) Stats(ctx context.Context, id uuid.UUID) (*models.Queu
 	if err != nil {
 		return nil, err
 	}
-	return pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[models.QueueStats])
+	stats, err := pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[models.QueueStats])
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
 }

@@ -122,7 +122,7 @@ func TestJobRepository_ReapStale_RequeuesJobsWithNoRecentHeartbeat(t *testing.T)
 		t.Fatalf("expected 1 job reaped, got %d", reaped)
 	}
 
-	after, err := jobRepo.GetByID(ctx, job.ID)
+	after, err := jobRepo.GetByID(ctx, fx.OrgID, job.ID)
 	if err != nil {
 		t.Fatalf("get after reap: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestJobRepository_ReapStale_LeavesJobsWithRecentHeartbeat(t *testing.T) {
 		t.Fatalf("expected 0 jobs reaped for a worker with a recent heartbeat, got %d", reaped)
 	}
 
-	after, err := jobRepo.GetByID(ctx, job.ID)
+	after, err := jobRepo.GetByID(ctx, fx.OrgID, job.ID)
 	if err != nil {
 		t.Fatalf("get after reap: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestJobRepository_ReapStale_HandlesNonUUIDLockedBy(t *testing.T) {
 		t.Fatalf("expected the malformed-locked_by job to be reaped, got %d reaped", reaped)
 	}
 
-	after, err := jobRepo.GetByID(ctx, jobID)
+	after, err := jobRepo.GetByID(ctx, fx.OrgID, jobID)
 	if err != nil {
 		t.Fatalf("get after reap: %v", err)
 	}
