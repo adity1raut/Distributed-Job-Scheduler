@@ -240,3 +240,106 @@ func TestRouter_DeleteProject_RoleGate(t *testing.T) {
 		t.Fatalf("owner delete: expected 200/204, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestRouter_CrossOrgAccess_Returns404 is the IDOR regression test: a resource below Project must
+// be unreachable to an authenticated user from a different organization, even with a valid ID.
+func TestRouter_CrossOrgAccess_Returns404(t *testing.T) {
+	pool := testutil.RequireDB(t)
+	router := testutil.NewTestRouter(t, pool)
+
+	ownerAEmail := fmt.Sprintf("orga-owner-%s@example.com", uniqueSuffix())
+	orgA := registerOrg(t, router, "Org A", ownerAEmail)
+
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", orgA.Token, map[string]string{"name": "org-a-proj"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("org A create project: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var projectA struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &projectA)
+
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/"+projectA.ID+"/queues", orgA.Token, map[string]any{
+		"name": "org-a-queue", "priority": 0, "concurrency_limit": 5,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("org A create queue: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var queueA struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &queueA)
+
+	rec = doJSON(t, router, http.MethodPost, "/api/queues/"+queueA.ID+"/jobs", orgA.Token, map[string]any{
+		"type": "immediate", "payload": map[string]string{"task": "echo"},
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("org A submit job: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var jobsA []struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &jobsA)
+	if len(jobsA) != 1 {
+		t.Fatalf("expected exactly 1 job back from submit, got %d", len(jobsA))
+	}
+	jobA := jobsA[0]
+
+	rec = doJSON(t, router, http.MethodPost, "/api/queues/"+queueA.ID+"/scheduled-jobs", orgA.Token, map[string]any{
+		"cron_expression": "*/5 * * * *",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("org A create scheduled job: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var scheduledA struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &scheduledA)
+
+	ownerBEmail := fmt.Sprintf("orgb-owner-%s@example.com", uniqueSuffix())
+	orgB := registerOrg(t, router, "Org B", ownerBEmail)
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   any
+	}{
+		{"get queue", http.MethodGet, "/api/queues/" + queueA.ID, nil},
+		{"update queue", http.MethodPatch, "/api/queues/" + queueA.ID, map[string]any{"priority": 9}},
+		{"pause queue", http.MethodPost, "/api/queues/" + queueA.ID + "/pause", nil},
+		{"queue stats", http.MethodGet, "/api/queues/" + queueA.ID + "/stats", nil},
+		{"submit job to foreign queue", http.MethodPost, "/api/queues/" + queueA.ID + "/jobs", map[string]any{"type": "immediate"}},
+		{"list jobs on foreign queue", http.MethodGet, "/api/queues/" + queueA.ID + "/jobs", nil},
+		{"list scheduled jobs on foreign queue", http.MethodGet, "/api/queues/" + queueA.ID + "/scheduled-jobs", nil},
+		{"list dlq on foreign queue", http.MethodGet, "/api/queues/" + queueA.ID + "/dlq", nil},
+		{"get foreign job", http.MethodGet, "/api/jobs/" + jobA.ID, nil},
+		{"retry foreign job", http.MethodPost, "/api/jobs/" + jobA.ID + "/retry", nil},
+		{"pause foreign scheduled job", http.MethodPost, "/api/scheduled-jobs/" + scheduledA.ID + "/pause", nil},
+		{"delete foreign queue", http.MethodDelete, "/api/queues/" + queueA.ID, nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := doJSON(t, router, tc.method, tc.path, orgB.Token, tc.body)
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("%s: expected 404 for cross-org access, got %d: %s", tc.name, rec.Code, rec.Body.String())
+			}
+			var errBody errorResponse
+			_ = json.Unmarshal(rec.Body.Bytes(), &errBody)
+			if errBody.Error.Code != "NOT_FOUND" {
+				t.Fatalf("%s: expected code NOT_FOUND, got %q", tc.name, errBody.Error.Code)
+			}
+		})
+	}
+
+	// Org A must still reach its own resources — the fix scopes by org, not blocks everything.
+	rec = doJSON(t, router, http.MethodGet, "/api/queues/"+queueA.ID, orgA.Token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("org A get own queue: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodGet, "/api/jobs/"+jobA.ID, orgA.Token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("org A get own job: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}

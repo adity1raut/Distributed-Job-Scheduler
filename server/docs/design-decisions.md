@@ -132,39 +132,53 @@ each organization now needs its own worker process(es) pointed at its own
 isolation, but it does mean the local dev setup in the README grew one
 more required step.
 
+## Every resource below Project is scoped by org_id, not just Project
+
+`projects.org_id` was always checked — but a queue, job, scheduled job, or
+dead-letter entry has no `org_id` column of its own, and every repository
+method that started from one of their IDs (`GetByID`, `Retry`, `SetActive`,
+`ListByQueue`, ...) trusted the ID alone. In practice that meant any
+authenticated user, in any organization, could read or mutate any other
+org's queues, jobs, execution logs, scheduled jobs, and dead-letter entries
+just by knowing (or guessing/enumerating) a UUID — a textbook IDOR / broken
+access control gap, and the one place the multi-tenancy story didn't
+actually hold end-to-end.
+
+The fix threads `orgID` from the JWT down through handler → service →
+repository for every one of those lookups, resolving org ownership via a
+join back to `projects` (`queues.project_id → projects.org_id`, and one
+join further for jobs/scheduled jobs/dead-letter entries). A mismatched org
+now returns the same `404 NOT_FOUND` as a nonexistent ID — cross-org access
+is indistinguishable from "that thing doesn't exist," which is the correct
+behavior for both cases.
+
+One query needed a second look even after adding the join:
+`QueueRepository.Stats` aggregates with `count(*) FILTER (...)` and no
+`GROUP BY`, and an aggregate with no `GROUP BY` always returns exactly one
+row — even when the `WHERE` clause matches zero rows. Scoping that query by
+org directly would have kept returning `200` with all-zero counts for a
+foreign queue instead of `404`. The fix follows the same pattern already
+used for `DLQService.List` and `ScheduledJobService.List`: verify ownership
+with `QueueRepository.GetByID` first, then run the (now org-unscoped, since
+ownership is already established) aggregate.
+
+The worker's own execution pipeline (`ExecutionService`) is deliberately
+left unscoped — it has no HTTP-request org context, and a worker only ever
+claims jobs from its own org's queues in the first place (see
+`activeQueueIDs` in `cmd/worker`), so there's no cross-tenant path through
+it to close. Those call sites go through `GetByIDInternal` /
+`GetByIDInternal`-style methods, explicitly named to flag that they skip
+the org check and are only safe for that trusted internal caller.
+
+Covered by `TestRouter_CrossOrgAccess_Returns404` in `router_test.go`,
+which registers two unrelated orgs and asserts a `404` for every one of
+these endpoints when org B reaches for org A's queue, job, scheduled job,
+or dead-letter entry — plus that org A can still reach its own resources
+afterward.
+
 ## How it all fits together
 
-```mermaid
-flowchart TB
-    Dashboard["React Dashboard<br/>Browser client"]
-
-    subgraph API["API — N replicas"]
-        Server["API Server<br/>Go · chi router · JWT · stateless"]
-        Scheduler["Scheduler goroutine<br/>ticks · cron dispatch · reaps stale claims"]
-    end
-
-    Redis[("Redis<br/>rate-limit counters only")]
-    Postgres[("PostgreSQL<br/>single source of truth")]
-
-    subgraph WorkersA["Workers — Org A (WORKER_ORG_ID=A)"]
-        WorkerA["Worker<br/>polls · claims · executes · heartbeats"]
-    end
-
-    subgraph WorkersB["Workers — Org B (WORKER_ORG_ID=B)"]
-        WorkerB["Worker<br/>polls · claims · executes · heartbeats"]
-    end
-
-    Dashboard -- "HTTPS + JWT" --> Server
-    Dashboard -. "poll every 5s" .-> Server
-    Server -- "check / incr rate limit" --> Redis
-    Server -- "reads / writes" --> Postgres
-    Scheduler -- "pg_try_advisory_lock, dispatch due scheduled_jobs" --> Postgres
-
-    WorkerA -- "poll & claim — SELECT ... FOR UPDATE SKIP LOCKED, org A's queues only" --> Postgres
-    WorkerA -- "heartbeat every 10s" --> Postgres
-    WorkerB -- "poll & claim — org B's queues only" --> Postgres
-    WorkerB -- "heartbeat every 10s" --> Postgres
-```
+![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; two separate per-org worker fleets each poll PostgreSQL to claim only their own organization's jobs with SELECT FOR UPDATE SKIP LOCKED and send heartbeats.](images/architecture.png)
 
 The full component breakdown and the job lifecycle state machine live in
 [architecture.md](architecture.md).

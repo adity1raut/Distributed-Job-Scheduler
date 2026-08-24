@@ -40,7 +40,7 @@ func TestExecutionService_Run_SuccessCompletesJob(t *testing.T) {
 
 	execSvc.Run(ctx, claimed, worker)
 
-	final, err := jobRepo.GetByID(ctx, created.ID)
+	final, err := jobRepo.GetByID(ctx, fx.OrgID, created.ID)
 	if err != nil {
 		t.Fatalf("get after run: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestExecutionService_Run_RetriesThenDeadLetters(t *testing.T) {
 	}
 	execSvc.Run(ctx, claimed, worker)
 
-	afterFirst, err := jobRepo.GetByID(ctx, created.ID)
+	afterFirst, err := jobRepo.GetByID(ctx, fx.OrgID, created.ID)
 	if err != nil {
 		t.Fatalf("get after attempt 1: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestExecutionService_Run_RetriesThenDeadLetters(t *testing.T) {
 	}
 	execSvc.Run(ctx, claimed2, worker)
 
-	final, err := jobRepo.GetByID(ctx, created.ID)
+	final, err := jobRepo.GetByID(ctx, fx.OrgID, created.ID)
 	if err != nil {
 		t.Fatalf("get after attempt 2: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestExecutionService_Run_RetriesThenDeadLetters(t *testing.T) {
 		t.Fatalf("expected status %q after exhausting retries, got %q", models.JobStatusDead, final.Status)
 	}
 
-	entries, err := dlqRepo.ListByQueue(ctx, fx.QueueID, 10)
+	entries, err := dlqRepo.ListByQueue(ctx, fx.OrgID, fx.QueueID, 10)
 	if err != nil {
 		t.Fatalf("list dlq: %v", err)
 	}

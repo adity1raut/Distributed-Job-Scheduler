@@ -25,25 +25,32 @@ func (r *DeadLetterRepository) Create(ctx context.Context, jobID uuid.UUID, fina
 	return err
 }
 
-// ListByQueue joins through jobs so the DLQ view can be scoped to one queue
-// without denormalizing queue_id onto dead_letter_queue itself.
-func (r *DeadLetterRepository) ListByQueue(ctx context.Context, queueID uuid.UUID, limit int) ([]models.DeadLetterEntry, error) {
+// ListByQueue joins through jobs/queues/projects to scope by orgID.
+func (r *DeadLetterRepository) ListByQueue(ctx context.Context, orgID, queueID uuid.UUID, limit int) ([]models.DeadLetterEntry, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT d.id, d.job_id, d.final_error, d.payload_snapshot, d.failed_at, d.replayed
 		FROM dead_letter_queue d
 		JOIN jobs j ON j.id = d.job_id
-		WHERE j.queue_id = $1
+		JOIN queues q ON q.id = j.queue_id
+		JOIN projects p ON p.id = q.project_id
+		WHERE j.queue_id = $1 AND p.org_id = $2
 		ORDER BY d.failed_at DESC
-		LIMIT $2`, queueID, limit)
+		LIMIT $3`, queueID, orgID, limit)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, pgx.RowToStructByName[models.DeadLetterEntry])
 }
 
-func (r *DeadLetterRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.DeadLetterEntry, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT id, job_id, final_error, payload_snapshot, failed_at, replayed FROM dead_letter_queue WHERE id = $1`, id)
+// GetByID joins through jobs/queues/projects to scope by orgID.
+func (r *DeadLetterRepository) GetByID(ctx context.Context, orgID, id uuid.UUID) (*models.DeadLetterEntry, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT d.id, d.job_id, d.final_error, d.payload_snapshot, d.failed_at, d.replayed
+		FROM dead_letter_queue d
+		JOIN jobs j ON j.id = d.job_id
+		JOIN queues q ON q.id = j.queue_id
+		JOIN projects p ON p.id = q.project_id
+		WHERE d.id = $1 AND p.org_id = $2`, id, orgID)
 	if err != nil {
 		return nil, err
 	}

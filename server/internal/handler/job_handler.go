@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/adity1raut/job-scheduler/internal/httpx"
+	"github.com/adity1raut/job-scheduler/internal/middleware"
 	"github.com/adity1raut/job-scheduler/internal/models"
 	"github.com/adity1raut/job-scheduler/internal/repository"
 	"github.com/adity1raut/job-scheduler/internal/service"
@@ -43,7 +44,8 @@ func (h *JobHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobs, err := h.jobs.Submit(r.Context(), queueID, service.SubmitJobInput{
+	orgID := middleware.OrgIDFromContext(r.Context())
+	jobs, err := h.jobs.Submit(r.Context(), orgID, queueID, service.SubmitJobInput{
 		Type:           req.Type,
 		Payload:        req.Payload,
 		IdempotencyKey: req.IdempotencyKey,
@@ -83,7 +85,8 @@ func (h *JobHandler) List(w http.ResponseWriter, r *http.Request) {
 		filter.Cursor = cursor
 	}
 
-	page, err := h.jobs.List(r.Context(), filter)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	page, err := h.jobs.List(r.Context(), orgID, filter)
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -98,7 +101,8 @@ func (h *JobHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := h.jobs.Get(r.Context(), id)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	job, err := h.jobs.Get(r.Context(), orgID, id)
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -122,7 +126,8 @@ func (h *JobHandler) Logs(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	logs, err := h.jobs.Logs(r.Context(), executionID)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	logs, err := h.jobs.Logs(r.Context(), orgID, executionID)
 	if err != nil {
 		writeErr(w, r, err)
 		return
@@ -136,7 +141,8 @@ func (h *JobHandler) Retry(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
-	job, err := h.jobs.Retry(r.Context(), id)
+	orgID := middleware.OrgIDFromContext(r.Context())
+	job, err := h.jobs.Retry(r.Context(), orgID, id)
 	if err != nil {
 		writeErr(w, r, err)
 		return

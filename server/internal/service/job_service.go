@@ -44,8 +44,8 @@ type SubmitJobInput struct {
 // recurring jobs are cron *definitions* (ScheduledJobService), not job rows;
 // the scheduler is what turns a due cron fire into a job row via this same
 // queue.
-func (s *JobService) Submit(ctx context.Context, queueID uuid.UUID, in SubmitJobInput) ([]models.Job, error) {
-	queue, err := s.queues.GetByID(ctx, queueID)
+func (s *JobService) Submit(ctx context.Context, orgID, queueID uuid.UUID, in SubmitJobInput) ([]models.Job, error) {
+	queue, err := s.queues.GetByID(ctx, orgID, queueID)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return nil, apperr.NotFound("queue")
@@ -127,8 +127,8 @@ func (s *JobService) Submit(ctx context.Context, queueID uuid.UUID, in SubmitJob
 	return jobs, nil
 }
 
-func (s *JobService) Get(ctx context.Context, id uuid.UUID) (*models.Job, error) {
-	job, err := s.jobs.GetByID(ctx, id)
+func (s *JobService) Get(ctx context.Context, orgID, id uuid.UUID) (*models.Job, error) {
+	job, err := s.jobs.GetByID(ctx, orgID, id)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return nil, apperr.NotFound("job")
@@ -138,6 +138,7 @@ func (s *JobService) Get(ctx context.Context, id uuid.UUID) (*models.Job, error)
 	return job, nil
 }
 
+// Executions trusts jobID with no further org check — the caller always calls Get first, which already verified it.
 func (s *JobService) Executions(ctx context.Context, jobID uuid.UUID) ([]models.JobExecution, error) {
 	executions, err := s.executions.ListByJob(ctx, jobID)
 	if err != nil {
@@ -146,15 +147,22 @@ func (s *JobService) Executions(ctx context.Context, jobID uuid.UUID) ([]models.
 	return executions, nil
 }
 
-func (s *JobService) Logs(ctx context.Context, executionID uuid.UUID) ([]models.JobLog, error) {
-	logs, err := s.logs.ListByExecution(ctx, executionID)
+func (s *JobService) Logs(ctx context.Context, orgID, executionID uuid.UUID) ([]models.JobLog, error) {
+	logs, err := s.logs.ListByExecution(ctx, orgID, executionID)
 	if err != nil {
 		return nil, apperr.Internal("failed to fetch execution logs")
 	}
 	return logs, nil
 }
 
-func (s *JobService) List(ctx context.Context, filter repository.JobFilter) (*httpx.Page[models.Job], error) {
+// List verifies the queue belongs to the caller's org before running the listing query.
+func (s *JobService) List(ctx context.Context, orgID uuid.UUID, filter repository.JobFilter) (*httpx.Page[models.Job], error) {
+	if _, err := s.queues.GetByID(ctx, orgID, filter.QueueID); err != nil {
+		if err == repository.ErrNotFound {
+			return nil, apperr.NotFound("queue")
+		}
+		return nil, apperr.Internal("failed to verify queue")
+	}
 	jobs, next, err := s.jobs.List(ctx, filter)
 	if err != nil {
 		return nil, apperr.Internal("failed to list jobs")
@@ -162,8 +170,8 @@ func (s *JobService) List(ctx context.Context, filter repository.JobFilter) (*ht
 	return &httpx.Page[models.Job]{Items: jobs, NextCursor: next}, nil
 }
 
-func (s *JobService) Retry(ctx context.Context, id uuid.UUID) (*models.Job, error) {
-	job, err := s.jobs.Retry(ctx, id)
+func (s *JobService) Retry(ctx context.Context, orgID, id uuid.UUID) (*models.Job, error) {
+	job, err := s.jobs.Retry(ctx, orgID, id)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return nil, apperr.NotFound("job")

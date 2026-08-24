@@ -62,8 +62,16 @@ func (r *ScheduledJobRepository) SetNextRunAt(ctx context.Context, tx pgx.Tx, id
 	return err
 }
 
-func (r *ScheduledJobRepository) SetActive(ctx context.Context, id uuid.UUID, active bool) error {
-	tag, err := r.pool.Exec(ctx, `UPDATE scheduled_jobs SET is_active = $2 WHERE id = $1`, id, active)
+// SetActive joins through queues/projects to scope by orgID — a scheduled job has no org_id column of its own.
+func (r *ScheduledJobRepository) SetActive(ctx context.Context, orgID, id uuid.UUID, active bool) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE scheduled_jobs SET is_active = $3
+		FROM queues, projects
+		WHERE scheduled_jobs.id = $1
+		  AND queues.id = scheduled_jobs.queue_id
+		  AND projects.id = queues.project_id
+		  AND projects.org_id = $2`,
+		id, orgID, active)
 	if err != nil {
 		return err
 	}

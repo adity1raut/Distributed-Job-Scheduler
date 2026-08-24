@@ -20,6 +20,16 @@ const jobColumns = `id, queue_id, scheduled_job_id, retry_policy_id, type, statu
 	idempotency_key, priority, attempts, max_attempts, batch_id, run_at,
 	locked_by, locked_at, last_error, created_at, updated_at`
 
+// jobColumnsQualified is jobColumns prefixed "j." for SELECT queries that join jobs against another table.
+const jobColumnsQualified = `j.id, j.queue_id, j.scheduled_job_id, j.retry_policy_id, j.type, j.status, j.payload,
+	j.idempotency_key, j.priority, j.attempts, j.max_attempts, j.batch_id, j.run_at,
+	j.locked_by, j.locked_at, j.last_error, j.created_at, j.updated_at`
+
+// jobColumnsUpdateQualified is the same, prefixed "jobs." for an UPDATE ... FROM statement instead.
+const jobColumnsUpdateQualified = `jobs.id, jobs.queue_id, jobs.scheduled_job_id, jobs.retry_policy_id, jobs.type, jobs.status, jobs.payload,
+	jobs.idempotency_key, jobs.priority, jobs.attempts, jobs.max_attempts, jobs.batch_id, jobs.run_at,
+	jobs.locked_by, jobs.locked_at, jobs.last_error, jobs.created_at, jobs.updated_at`
+
 type JobRepository struct {
 	pool *pgxpool.Pool
 }
@@ -66,8 +76,13 @@ func (r *JobRepository) getByIdempotencyKey(ctx context.Context, queueID uuid.UU
 	return pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByName[models.Job])
 }
 
-func (r *JobRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Job, error) {
-	rows, err := r.pool.Query(ctx, fmt.Sprintf(`SELECT %s FROM jobs WHERE id = $1`, jobColumns), id)
+// GetByID joins through queues/projects to scope by orgID — a job has no org_id column of its own.
+func (r *JobRepository) GetByID(ctx context.Context, orgID, id uuid.UUID) (*models.Job, error) {
+	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
+		SELECT %s FROM jobs j
+		JOIN queues q ON q.id = j.queue_id
+		JOIN projects p ON p.id = q.project_id
+		WHERE j.id = $1 AND p.org_id = $2`, jobColumnsQualified), id, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -270,12 +285,16 @@ func (r *JobRepository) MoveToDead(ctx context.Context, id uuid.UUID, lastErr st
 
 // Retry re-queues a job from failed/dead — used for a manual retry from the
 // dashboard, distinct from the automatic backoff retry after a transient failure.
-func (r *JobRepository) Retry(ctx context.Context, id uuid.UUID) (*models.Job, error) {
+func (r *JobRepository) Retry(ctx context.Context, orgID, id uuid.UUID) (*models.Job, error) {
 	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
 		UPDATE jobs SET status = 'queued', attempts = 0, last_error = NULL,
 			locked_by = NULL, locked_at = NULL, run_at = now(), updated_at = now()
-		WHERE id = $1
-		RETURNING %s`, jobColumns), id)
+		FROM queues, projects
+		WHERE jobs.id = $1
+		  AND queues.id = jobs.queue_id
+		  AND projects.id = queues.project_id
+		  AND projects.org_id = $2
+		RETURNING %s`, jobColumnsUpdateQualified), id, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -289,17 +308,9 @@ func (r *JobRepository) Retry(ctx context.Context, id uuid.UUID) (*models.Job, e
 	return job, nil
 }
 
-// ReapStale requeues jobs stuck in claimed/running whose owning worker has
-// sent no heartbeat inside staleSec — the worker most likely crashed.
-// ReapStale requeues any claim whose worker has gone quiet. locked_by is a
-// plain TEXT column (not a UUID FK — see design-decisions.md), so it's
-// guarded with a format check before ever being cast: Postgres doesn't
-// guarantee left-to-right evaluation of AND-ed WHERE clauses, so a bare
-// `locked_by::uuid` can still get evaluated (and error out) on a
-// non-UUID value even sitting behind a `locked_by IS NOT NULL` check,
-// depending on the query plan the row count happens to pick. A value that
-// isn't UUID-shaped at all can't belong to any real worker anyway, so it's
-// treated as immediately reapable rather than crashing the whole tick.
+// ReapStale requeues claimed/running jobs whose worker has gone quiet.
+// locked_by is a plain TEXT column, so a value that isn't UUID-shaped is
+// guarded out before the ::uuid cast instead of crashing the whole tick.
 func (r *JobRepository) ReapStale(ctx context.Context, staleSec int) (int, error) {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE jobs

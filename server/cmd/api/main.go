@@ -55,7 +55,7 @@ func main() {
 	jobSvc := service.NewJobService(jobRepo, queueRepo, execRepo, logRepo, policyRepo)
 	scheduledJobSvc := service.NewScheduledJobService(scheduledJobRepo, queueRepo)
 	workerSvc := service.NewWorkerService(workerRepo, cfg.StaleJobSec)
-	dlqSvc := service.NewDLQService(dlqRepo, jobRepo)
+	dlqSvc := service.NewDLQService(dlqRepo, jobRepo, queueRepo)
 	dashboardSvc := service.NewDashboardService(pool)
 
 	router := handler.NewRouter(handler.Dependencies{

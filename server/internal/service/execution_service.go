@@ -105,7 +105,7 @@ func (s *ExecutionService) Run(ctx context.Context, job *models.Job, workerID uu
 func (s *ExecutionService) resolveRetryPolicy(ctx context.Context, job *models.Job) models.RetryPolicy {
 	policyID := job.RetryPolicyID
 	if policyID == nil {
-		queue, err := s.queues.GetByID(ctx, job.QueueID)
+		queue, err := s.queues.GetByIDInternal(ctx, job.QueueID)
 		if err != nil {
 			return fallbackRetryPolicy
 		}

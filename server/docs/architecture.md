@@ -3,37 +3,7 @@
 Two Go binaries, and everything they need to agree on lives in one place:
 PostgreSQL. No message broker, no external queue sitting between them.
 
-```mermaid
-flowchart TB
-    Dashboard["React Dashboard<br/>Browser client"]
-
-    subgraph API["API — N replicas"]
-        Server["API Server<br/>Go · chi router · JWT · stateless"]
-        Scheduler["Scheduler goroutine<br/>ticks · cron dispatch · reaps stale claims"]
-    end
-
-    Redis[("Redis<br/>rate-limit counters only")]
-    Postgres[("PostgreSQL<br/>single source of truth")]
-
-    subgraph WorkersA["Workers — Org A (WORKER_ORG_ID=A)"]
-        WorkerA["Worker<br/>polls · claims · executes · heartbeats"]
-    end
-
-    subgraph WorkersB["Workers — Org B (WORKER_ORG_ID=B)"]
-        WorkerB["Worker<br/>polls · claims · executes · heartbeats"]
-    end
-
-    Dashboard -- "HTTPS + JWT" --> Server
-    Dashboard -. "poll every 5s" .-> Server
-    Server -- "check / incr rate limit" --> Redis
-    Server -- "reads / writes" --> Postgres
-    Scheduler -- "pg_try_advisory_lock, dispatch due scheduled_jobs" --> Postgres
-
-    WorkerA -- "poll & claim — SELECT ... FOR UPDATE SKIP LOCKED, org A's queues only" --> Postgres
-    WorkerA -- "heartbeat every 10s" --> Postgres
-    WorkerB -- "poll & claim — org B's queues only" --> Postgres
-    WorkerB -- "heartbeat every 10s" --> Postgres
-```
+![Architecture diagram: React dashboard talks to a horizontally scaled API server over HTTPS with JWT auth and polls it every 5 seconds for live updates; the API reads and writes PostgreSQL and checks Redis for rate limits; a scheduler goroutine inside the API dispatches due scheduled jobs into PostgreSQL under a Postgres advisory lock; two separate per-org worker fleets each poll PostgreSQL to claim only their own organization's jobs with SELECT FOR UPDATE SKIP LOCKED and send heartbeats.](images/architecture.png)
 
 No message broker, no external queue — Postgres is what every piece
 agrees through. Redis is a soft cache for rate limits, not required for
