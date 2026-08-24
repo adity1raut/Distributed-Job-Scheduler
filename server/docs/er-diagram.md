@@ -6,81 +6,67 @@ Job Logs, Scheduled Jobs, Dead Letter Queue.
 
 ![Entity-relationship diagram of all twelve tables: organizations own users, projects, and retry policies; projects contain queues; queues hold jobs and define scheduled jobs which spawn more jobs; jobs produce job executions which emit job logs and can terminate in the dead letter queue; workers execute job executions and report worker heartbeats.](images/er-diagram.png)
 
-Full DDL, if you want the exact constraints and defaults:
-[`migrations/000001_init_schema.up.sql`](../migrations/000001_init_schema.up.sql)
-and [`migrations/000002_worker_org_scoping.up.sql`](../migrations/000002_worker_org_scoping.up.sql).
-
 ## A few things worth knowing about this schema
 
-Every table uses a `uuid` primary key from `gen_random_uuid()` instead of
-a serial integer, mainly so IDs are safe to hand back in API responses
+Every table uses a randomly generated ID as its primary key instead of a
+simple counter, mainly so IDs are safe to hand back in API responses
 without leaking how many rows exist.
 
-It's normalized to 3NF throughout, and the clearest example is
-`retry_policies` being its own table instead of a few columns bolted
-onto `queues`. A policy needs to be reusable across queues, and a single
-job occasionally needs to override its queue's default. Neither of those
-work if the policy is just inline columns. `jobs.retry_policy_id` is
-nullable for exactly this reason: unset, it falls back to whatever
-`queues.retry_policy_id` says.
+It's normalized throughout, and the clearest example is retry policies
+being their own table instead of a few columns bolted onto queues. A
+policy needs to be reusable across queues, and a single job occasionally
+needs to override its queue's default. Neither of those work if the
+policy is just inline columns. A job's policy reference is optional for
+exactly this reason: unset, it falls back to whatever its queue's policy
+says.
 
-`job_executions` and `job_logs` are append-only. A job's own row gets
+Job executions and job logs are append-only. A job's own row gets
 overwritten every time it retries, but each *attempt* keeps its own row.
 Otherwise there'd be no way to look back and see what actually happened
 on attempt 2 once attempt 3 has already started.
 
-### `workers.org_id` is nullable, the one intentional exception
+### The one nullable exception
 
-Every other FK in this schema is `NOT NULL`. `workers.org_id` is the
-exception: it was added by a later migration
-(`000002_worker_org_scoping`), and existing worker rows from before that
-migration have no organization they can be correctly backfilled to.
-Deleting them instead of leaving them null would have cascade-deleted
-their `job_executions` and `job_logs` history along with them. They
-simply stop matching any org-scoped query going forward, equivalent to
-being retired, not deleted. Every worker row the application creates
-going forward always sets it; see
-[design-decisions.md](design-decisions.md#workers-belong-to-exactly-one-organization).
+Every other relationship in this schema is required. A worker's
+organization link is the one exception: it was added by a later
+migration, and worker rows created before that migration have no
+organization they can be correctly backfilled to. Deleting them instead
+of leaving them unset would have taken their execution and log history
+down with them. They simply stop matching any org-scoped query going
+forward, equivalent to being retired, not deleted. Every worker row the
+application creates going forward always sets it.
 
 ### The indexes that actually matter
 
-Most of the FK columns have an obvious supporting index and aren't worth
-listing individually. A few carry real weight on the write path, though:
+Most foreign-key columns have an obvious supporting index and aren't
+worth listing individually. A few carry real weight on the write path,
+though:
 
-- `jobs(queue_id, status, priority DESC, run_at)`: this is the index the
-  atomic-claim query runs on. Without it, claiming a job means scanning
-  the whole table.
-- `UNIQUE (queue_id, idempotency_key) WHERE idempotency_key IS NOT NULL`:
-  idempotent submission isn't just an application-layer promise, the
-  database physically won't allow a duplicate.
-- `worker_heartbeats(worker_id, reported_at DESC)`: "is this worker
-  still alive" is always a query for the single most recent row, so
-  that's what the index is shaped for.
-- `scheduled_jobs(next_run_at) WHERE is_active`: a partial index, since
-  the scheduler only ever cares about active, due rows and there's no
-  reason to index the rest.
-- `workers(org_id)`: every worker-facing endpoint and the dashboard's
-  online-worker count filter by it.
+- The index behind the job-claiming query, so claiming a job doesn't mean
+  scanning the whole table.
+- A uniqueness constraint on idempotency keys, so idempotent submission
+  isn't just an application-layer promise: the database physically won't
+  allow a duplicate.
+- An index shaped around "is this worker still alive," since that's
+  always a query for the single most recent heartbeat.
+- A partial index on due, active scheduled jobs, since the scheduler only
+  ever cares about those.
 
 ### What happens when something gets deleted
 
-Most deletes cascade down the natural containment tree:
-`organizations → projects → queues → jobs → job_executions → job_logs`,
-plus `dead_letter_queue` and `worker_heartbeats` cascading with their
-parent row. That's the right default here: an execution log with no job
-to belong to isn't useful to anyone. The trade-off is that deleting a
-project takes its whole audit history with it, which is fine for this
-brief but flagged in [design-decisions.md](design-decisions.md) as the
-first thing to change (to a `deleted_at` soft-delete) if this ever
-needed to hold onto records for compliance reasons.
+Most deletes cascade down the natural containment tree: organization →
+project → queue → job → execution → log, plus dead-letter entries and
+worker heartbeats cascading with their parent row. That's the right
+default here: an execution log with no job to belong to isn't useful to
+anyone. The trade-off is that deleting a project takes its whole audit
+history with it, which is fine for this brief but flagged in
+[design-decisions.md](design-decisions.md) as the first thing to change
+(to a soft-delete) if this ever needed to hold onto records for
+compliance reasons.
 
-Three foreign keys deliberately don't follow that pattern:
-
-- `queues.retry_policy_id → retry_policies` is `RESTRICT`: you can't
-  delete a policy while a queue is still using it.
-- `projects.owner_id → users` is `RESTRICT`: same idea, you can't delete
-  a user who still owns a project.
-- `jobs.scheduled_job_id` and `jobs.retry_policy_id` (the per-job
-  override) are both `SET NULL`: a job that's already running should
-  keep running even if the cron definition or the policy override
-  behind it gets deleted later.
+A few relationships deliberately don't follow that pattern: you can't
+delete a retry policy that's still in use, and you can't delete a user
+who still owns a project. And if a cron definition or a job's policy
+override gets deleted later, a job that references it just loses that
+reference rather than being deleted itself: a job that's already running
+should keep running either way.

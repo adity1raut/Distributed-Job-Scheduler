@@ -6,7 +6,7 @@ independent binaries (`cmd/api`, `cmd/worker`) sharing a common
 LOCKED` job claiming) and Redis (rate limiting). Lives under `server/`.
 
 For setup and running instructions, see the
-[project README](Readme.md) — its [Setup](Readme.md#setup) and
+[project README](Readme.md). Its [Setup](Readme.md#setup) and
 [Rolling Back Migrations](Readme.md#rolling-back-migrations) sections
 cover this, since the API, worker, and frontend are started together.
 

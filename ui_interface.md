@@ -37,11 +37,11 @@ npm run dev
 ```
 
 Open the URL Vite prints (default `http://localhost:5173`). Requires
-Postgres, Redis, and the API already running — see the root
+Postgres, Redis, and the API already running; see the root
 [`Readme.md`](Readme.md#setup) for that. The dashboard has nothing
 to render without a running API.
 
-That's enough to load the app, but not enough to see a job actually run —
+That's enough to load the app, but not enough to see a job actually run,
 for registering an org, starting a `cmd/worker` for it, creating your
 first project/queue, submitting each of the four job types and watching
 how they perform (retries, dead-lettering, cron schedules, concurrency),
@@ -158,7 +158,7 @@ ui-interface/src/
   go through `lib/confirm.js` + `ConfirmHost.jsx` instead of the
   browser's native `window.confirm()`, so they match the app's theme and
   can be dismissed with Escape or a click outside.
-- **Rate limiting and continuous polling — verified working.** The
+- **Rate limiting and continuous polling (verified working).** The
   dashboard is polling-heavy: a page like Overview alone runs five
   independent `usePolling` calls (`getOverview` every 5s, plus
   workers/throughput/project lists on their own intervals), each a
@@ -167,11 +167,11 @@ ui-interface/src/
   [backend testing notes](server.md#testing)). The limiter used to reset its 60s
   window on *every* request instead of only the first one in a window,
   so continuous polling kept pushing the expiry forward and the count
-  never reset — real dashboard usage would get wrongly stuck on `429
+  never reset, so real dashboard usage would get wrongly stuck on `429
   rate limit exceeded` after a couple of minutes. That's fixed
   server-side (`server/internal/middleware/ratelimit.go`); with the fix,
   leaving the dashboard open and polling continuously across multiple
   tabs/pages no longer trips a false rate limit. The frontend itself
-  needed no change — a `429` just surfaces through the normal `error`
+  needed no change. A `429` just surfaces through the normal `error`
   state / toast path in `ui-interface/src/api/client.js`, same as any
   other API error.
