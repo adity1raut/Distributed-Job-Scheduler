@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jobscheduler_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: server/go.sum
+
+      - run: go build ./...
+      - run: go vet ./...
+
+      - name: Install golang-migrate
+        run: go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.1
+
+      - name: Apply migrations
+        run: |
+          migrate -path migrations \
+            -database "postgres://postgres:postgres@localhost:5432/jobscheduler_test?sslmode=disable" \
+            up
+
+      # Mirrors server.md#testing: unit tests run regardless, the
+      # Postgres/Redis-gated integration tests activate because these two
+      # env vars are set.
+      - name: Test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/jobscheduler_test?sslmode=disable
+          TEST_REDIS_ADDR: localhost:6379
+        run: go test ./... -race -count=1
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui-interface
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui-interface/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  # Proves the three deployment images actually build — the same gate
+  # DEPLOYMENT.md assumes is green before anyone deploys from this branch.
+  # No registry push/credentials here by design; wire that up separately
+  # once you've picked a registry (see DEPLOYMENT.md's CI/CD section).
+  docker-build:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build api image
+        run: docker build --target api -t job-scheduler-api:ci ./server
+
+      - name: Build worker image
+        run: docker build --target worker -t job-scheduler-worker:ci ./server
+
+      - name: Build frontend image
+        run: docker build -t job-scheduler-frontend:ci ./ui-interface

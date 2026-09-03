@@ -1,0 +1,5 @@
+# Root-level env file for docker-compose.yml (server/ and ui-interface/
+# each have their own .gitignore for go run / npm run dev).
+.env
+.env.*
+!.env.deploy.example

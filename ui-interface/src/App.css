@@ -68,8 +68,27 @@
 
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   padding: 4px 10px 24px;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(155deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #7c2d12));
+  color: #fff;
+  box-shadow: 0 2px 6px var(--accent-border);
 }
 
 .brand-name {

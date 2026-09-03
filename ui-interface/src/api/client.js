@@ -1,4 +1,11 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+// Resolution order: a runtime-injected value (window.__APP_CONFIG__, written
+// by the Docker image's entrypoint from the container's VITE_API_URL env var
+// — see docker-entrypoint.d/40-render-config.sh) takes priority over the
+// build-time Vite env var, so one built image can be deployed against
+// different API URLs without a rebuild. The Vite env var still works
+// unchanged for platforms that inject it at build time (Vercel/Netlify/CI)
+// instead of running our Docker image.
+const BASE_URL = window.__APP_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
 export async function request(path, options = {}) {
   const token = localStorage.getItem('token')

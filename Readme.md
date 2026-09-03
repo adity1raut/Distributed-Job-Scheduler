@@ -115,7 +115,7 @@ exactly one organization, so this ID is required before one can start.
 From `server/`, with the org ID from the previous step:
 
 ```bash
-WORKER_ORG_ID=<your-org-id> go run ./cmd/worker
+WORKER_ORG_ID=4c8f38df-3ae6-4449-b858-480f346f727e go run ./cmd/worker
 ```
 
 Or set `WORKER_ORG_ID` in `server/.env` instead of passing it inline.
@@ -158,3 +158,4 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 | **[`server/docs/design-decisions.md`](server/docs/design-decisions.md)** | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
 | **[`ui_interface.md`](ui_interface.md)** | Frontend feature list, structure, env vars |
 | **[`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md)** | Registering an org, starting a worker, creating a project/queue, all four job types, cron schedules, concurrency |
+| **[`DEPLOYMENT.md`](DEPLOYMENT.md)** | Docker images, the `docker-compose.yml` stack, required env vars, the worker-per-org deploy model, CI |

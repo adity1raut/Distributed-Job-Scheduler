@@ -1,0 +1,122 @@
+# Deployment-ready local/staging stack. See DEPLOYMENT.md for the full
+# walkthrough, the environment variables that MUST change before this goes
+# anywhere public, and why `worker` is a profile instead of starting by
+# default.
+#
+# Quick start:
+#   cp .env.deploy.example .env
+#   # edit .env: set a real JWT_SECRET at minimum
+#   docker compose up -d postgres redis migrate api frontend
+#   # register an org at http://localhost:5173, grab its org_id, then:
+#   WORKER_ORG_ID=<org-id> docker compose --profile worker up -d worker
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: jobscheduler
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # One-shot: applies migrations, then exits. api/frontend wait on it via
+  # `condition: service_completed_successfully` (Docker Compose v2.20+).
+  migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./server/migrations:/migrations:ro
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://postgres:postgres@postgres:5432/jobscheduler?sslmode=disable",
+        "up",
+      ]
+    restart: "no"
+
+  api:
+    build:
+      context: ./server
+      target: api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/jobscheduler?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:?set a real JWT_SECRET in .env before starting — see DEPLOYMENT.md}
+      JWT_EXPIRY_HOURS: ${JWT_EXPIRY_HOURS:-24}
+      API_PORT: 8080
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-120}
+      SCHEDULER_TICK_SEC: ${SCHEDULER_TICK_SEC:-5}
+      STALE_JOB_SEC: ${STALE_JOB_SEC:-60}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # Not started by `docker compose up` on its own — WORKER_ORG_ID has no
+  # sane default (a worker must belong to a real, already-registered org),
+  # so this only runs when explicitly requested via --profile worker, after
+  # you've registered through the frontend and know which org to serve.
+  # Repeat with a different WORKER_ORG_ID (and --project-name, or
+  # `docker compose run`) per additional org — see DEPLOYMENT.md.
+  worker:
+    profiles: ["worker"]
+    build:
+      context: ./server
+      target: worker
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/jobscheduler?sslmode=disable
+      WORKER_ORG_ID: ${WORKER_ORG_ID:?set WORKER_ORG_ID to the org this worker should serve — see DEPLOYMENT.md}
+      WORKER_POLL_MS: ${WORKER_POLL_MS:-500}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-10}
+      HEARTBEAT_SEC: ${HEARTBEAT_SEC:-10}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./ui-interface
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+    depends_on:
+      - api
+    environment:
+      # Read at container *startup*, not build time — see
+      # docker-entrypoint.d/40-render-config.sh. Change this to your
+      # public API URL without rebuilding the image.
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
