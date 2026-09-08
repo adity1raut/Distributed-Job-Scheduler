@@ -10,7 +10,7 @@
 # a rolling deploy is a real source of subtle bugs when the two are built
 # separately.
 # ---------------------------------------------------------------------------
-FROM golang:1.25-alpine AS build
+FROM golang:1.27-alpine AS build
 
 # git is needed by the Go toolchain for module resolution; ca-certificates
 # for fetching modules over HTTPS.
@@ -49,7 +49,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # attack surface is kept down instead by running as a non-root user with no
 # shell login, a read-only-friendly layout, and Trivy scanning in CI.
 # ---------------------------------------------------------------------------
-FROM alpine:3.21 AS runtime
+FROM alpine:3.24 AS runtime
 
 RUN apk add --no-cache ca-certificates tzdata wget && \
     addgroup -g 10001 -S app && \
