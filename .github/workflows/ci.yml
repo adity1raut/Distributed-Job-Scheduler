@@ -169,7 +169,7 @@ jobs:
       # valid and the image is free of known criticals. Publishing is the CD
       # workflow's job, and only for commits that already passed here.
       - name: Build ${{ matrix.name }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           push: false
