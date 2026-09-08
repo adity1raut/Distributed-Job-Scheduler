@@ -10,7 +10,7 @@
 # a rolling deploy is a real source of subtle bugs when the two are built
 # separately.
 # ---------------------------------------------------------------------------
-FROM golang:1.25-alpine AS build
+FROM golang:1.27-alpine AS build
 
 # git is needed by the Go toolchain for module resolution; ca-certificates
 # for fetching modules over HTTPS.
