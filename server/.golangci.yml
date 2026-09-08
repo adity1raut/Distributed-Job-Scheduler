@@ -1,0 +1,55 @@
+# golangci-lint configuration.
+#
+# The goal is a gate that catches real defects without producing findings the
+# author can only silence. Style-only linters are deliberately left off:
+# gofmt already settles formatting, and a linter that argues about naming
+# turns every PR into a debate.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - errcheck     # unchecked errors — the single highest-value check in Go
+    - govet        # suspicious constructs, including lock copying
+    - ineffassign  # assignments that are never read
+    - staticcheck  # correctness and simplification (subsumes gosimple/stylecheck)
+    - unused       # dead code
+    - bodyclose    # unclosed HTTP response bodies leak connections
+    - rowserrcheck # a missed rows.Err() silently truncates a result set
+    - sqlclosecheck
+
+  settings:
+    errcheck:
+      # These two are idiomatic when deferred and carry no useful error:
+      #
+      #   defer tx.Rollback(ctx)  — a no-op once Commit has succeeded, and on
+      #     the failure path the error that caused the rollback is the one
+      #     worth reporting, not the rollback's own.
+      #   defer x.Close()         — on a pool or client being torn down at
+      #     shutdown there is nothing left to do about a failure.
+      #
+      # Excluded by signature rather than with scattered `_ =` assignments, so
+      # the rule is stated once and cannot drift.
+      exclude-functions:
+        - (github.com/jackc/pgx/v5.Tx).Rollback
+        - (*github.com/redis/go-redis/v9.Client).Close
+
+  exclusions:
+    generated: lax
+    rules:
+      # Test files may ignore errors from fixture teardown without ceremony.
+      - path: _test\.go
+        linters: [errcheck]
+
+issues:
+  # Report every occurrence. The defaults cap findings per linter and per
+  # line, which quietly hides real problems behind the first few.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt

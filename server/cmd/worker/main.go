@@ -20,6 +20,11 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// buildVersion is stamped at link time by the Docker build and the release
+// pipeline (-ldflags "-X main.buildVersion=..."), matching cmd/api so a
+// mixed-version fleet is visible in the logs during a rolling deploy.
+var buildVersion = "dev"
+
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	_ = godotenv.Load() // optional: falls back to real env vars / defaults if .env is absent
@@ -57,7 +62,7 @@ func main() {
 		slog.Error("failed to register worker", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("worker registered", "worker_id", w.ID, "org_id", orgID, "hostname", hostname, "concurrency", cfg.WorkerConcurrency)
+	slog.Info("worker registered", "worker_id", w.ID, "org_id", orgID, "hostname", hostname, "concurrency", cfg.WorkerConcurrency, "version", buildVersion, "env", cfg.AppEnv)
 
 	var activeJobs int64
 	var wg sync.WaitGroup

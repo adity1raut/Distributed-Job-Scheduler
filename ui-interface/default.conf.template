@@ -1,0 +1,119 @@
+# Serves the built SPA and reverse-proxies the API under the same origin.
+#
+# Same-origin is the point: it removes cross-origin requests entirely, so the
+# API's CORS allowlist does not have to be maintained per environment, and
+# the browser sends no preflight on every mutation.
+
+upstream api_backend {
+    # Set from the API_UPSTREAM environment variable at container start. In
+    # compose this is the service name (api:8080), which Docker's internal DNS
+    # resolves. nginx looks it up once at startup, which is why the compose
+    # file makes this container wait for the api container to be healthy.
+    server ${API_UPSTREAM};
+    keepalive 32;
+}
+
+server {
+    # 8080, not 80: ports below 1024 need root, and this container runs as the
+    # unprivileged nginx user.
+    listen 8080;
+    listen [::]:8080;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Do not advertise the exact nginx version to every client.
+    server_tokens off;
+
+    # --- Security headers -------------------------------------------------
+    include /etc/nginx/snippets/security-headers.conf;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types text/plain text/css text/javascript application/javascript application/json image/svg+xml;
+
+    client_max_body_size 2m;
+
+    # --- Container health -------------------------------------------------
+    # Served by nginx itself so it reports on the web tier only. It must not
+    # depend on the API, or a brief API outage would take the dashboard's
+    # replicas out of rotation too.
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Proxied deliberately: /healthz above answers for the web tier alone,
+    # while this reports on the whole chain (nginx -> API -> Postgres). An
+    # external uptime check pointed here fails if any layer is broken, which
+    # is what you actually want to be paged about.
+    location = /readyz {
+        access_log off;
+        proxy_pass http://api_backend/readyz;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 5s;
+    }
+
+    # --- API proxy --------------------------------------------------------
+    location /api/ {
+        proxy_pass http://api_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Job submission is fast, but the dashboard's polling endpoints can be
+        # slow under load; 60s is generous without letting a wedged upstream
+        # pin connections indefinitely.
+        proxy_connect_timeout 5s;
+        proxy_send_timeout    60s;
+        proxy_read_timeout    60s;
+
+        # Buffering off keeps latency down for the small JSON payloads this
+        # API returns, and avoids nginx spooling responses to disk.
+        proxy_buffering off;
+    }
+
+    # --- Static assets ----------------------------------------------------
+    # Vite emits content-hashed filenames under /assets, so they can be cached
+    # permanently. A new deploy produces new names.
+    location /assets/ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        access_log off;
+        try_files $uri =404;
+    }
+
+    # Never cached: it is rewritten on every container start, and a stale copy
+    # would point the app at the previous environment's API.
+    location = /config.js {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        try_files $uri =404;
+    }
+
+    # index.html must not be cached either, or browsers keep loading the old
+    # bundle references after a deploy.
+    # try_files in `location /` internally redirects here, so this block —
+    # not `location /` — is what actually serves the app shell.
+    location = /index.html {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    }
+
+    # SPA fallback: react-router owns client-side routes, so any unmatched
+    # path must return index.html rather than a 404.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

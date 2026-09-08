@@ -24,7 +24,9 @@ type Dependencies struct {
 	Redis           *redis.Client
 	RateLimitPerMin int
 	AllowedOrigins  []string
+	TrustedProxies  []string
 
+	Health       *HealthHandler
 	Auth         *AuthHandler
 	Project      *ProjectHandler
 	Queue        *QueueHandler
@@ -37,6 +39,8 @@ type Dependencies struct {
 
 func NewRouter(d Dependencies) http.Handler {
 	r := chi.NewRouter()
+	// Must run before Logging and RateLimit — both read RemoteAddr.
+	r.Use(middleware.RealIP(middleware.ParseTrustedProxies(d.TrustedProxies)))
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logging)
 	r.Use(cors.Handler(cors.Options{
@@ -48,10 +52,26 @@ func NewRouter(d Dependencies) http.Handler {
 		MaxAge:           int(10 * time.Minute / time.Second),
 	}))
 
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
+	// Probe endpoints sit outside /api and outside the rate limiter: an
+	// orchestrator polling them every few seconds must never be throttled,
+	// and must never need a token.
+	//
+	// /healthz is kept as an alias for /livez so existing load balancer and
+	// uptime-check configuration pointing at it keeps working.
+	// HEAD as well as GET: chi does not imply one from the other, and plenty
+	// of health checkers (wget --spider, some load balancers) probe with HEAD
+	// — which would otherwise come back 405 and read as unhealthy.
+	for _, probe := range []struct {
+		path    string
+		handler http.HandlerFunc
+	}{
+		{"/livez", d.Health.Live},
+		{"/healthz", d.Health.Live},
+		{"/readyz", d.Health.Ready},
+	} {
+		r.Get(probe.path, probe.handler)
+		r.Head(probe.path, probe.handler)
+	}
 
 	r.Route("/api", func(r chi.Router) {
 		r.Group(func(r chi.Router) {

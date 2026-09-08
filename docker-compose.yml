@@ -1,0 +1,250 @@
+# ---------------------------------------------------------------------------
+# Base stack: Postgres, Redis, schema migrations, the API, a worker fleet and
+# the dashboard. `docker compose up` brings up a complete, working system.
+#
+# This file describes the production topology. docker-compose.override.yml is
+# applied automatically on top of it for local development (source mounts,
+# exposed database ports, hot reload); docker-compose.prod.yml replaces the
+# local builds with registry images and adds resource limits.
+# ---------------------------------------------------------------------------
+
+x-logging: &default-logging
+  # Without a cap, container logs grow until they fill the disk — the single
+  # most common way a small deployment dies at 3am.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-api-env: &api-env
+  DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-jobscheduler}?sslmode=disable
+  REDIS_ADDR: redis:6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set — copy .env.example to .env}
+  JWT_EXPIRY_HOURS: ${JWT_EXPIRY_HOURS:-24}
+  APP_ENV: ${APP_ENV:-production}
+  RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-120}
+  TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+  SHUTDOWN_TIMEOUT_SEC: ${SHUTDOWN_TIMEOUT_SEC:-15}
+  SCHEDULER_TICK_SEC: ${SCHEDULER_TICK_SEC:-5}
+  STALE_JOB_SEC: ${STALE_JOB_SEC:-60}
+
+services:
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-jobscheduler}
+      # Postgres only applies its own tuning to a fresh data directory;
+      # checksums must be requested at initdb time or never.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # -U/-d are explicit: pg_isready defaults to the *client* user, which
+      # inside this image is root and would report a false negative.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-jobscheduler}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [backend]
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly keeps rate-limit windows across a restart. The password is
+    # applied only when set, so a blank REDIS_PASSWORD stays usable locally.
+    command: >
+      sh -c 'exec redis-server
+      --appendonly yes
+      --save 60 1
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      ${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"}'
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks: [backend]
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Schema migrations run as their own one-shot service rather than from the
+  # API's startup path. Every API replica starting at once would otherwise
+  # race to migrate the same database, and a failed migration would show up as
+  # a crash-looping API instead of a clearly failed deploy step.
+  migrate:
+    image: migrate/migrate:v4.18.1
+    restart: "no"
+    command:
+      - -path=/migrations
+      - -database=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-jobscheduler}?sslmode=disable
+      - up
+    volumes:
+      - ./server/migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${IMAGE_TAG:-dev}
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:-local}/api:${IMAGE_TAG:-dev}
+    restart: unless-stopped
+    command: ["api"]
+    environment:
+      <<: *api-env
+      API_PORT: "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        # The API never starts against an un-migrated schema.
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O /dev/null http://127.0.0.1:8080/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks: [backend]
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Registers a first organization so the worker has an org to poll, then
+  # writes its ID where the worker can read it. Development convenience only:
+  # drop this service in production and register through the UI.
+  #
+  # Idempotent — a second run logs in instead of registering.
+  bootstrap:
+    image: curlimages/curl:8.11.1
+    restart: "no"
+    # The curl image runs as uid 100, but a fresh named volume is owned by
+    # root, so writing the org id would fail. This is a one-shot dev helper
+    # that exits immediately and is disabled in production.
+    user: "0:0"
+    entrypoint: ["/bin/sh", "/scripts/bootstrap-org.sh"]
+    environment:
+      API_BASE: http://api:8080
+      ORG_NAME: ${BOOTSTRAP_ORG_NAME:-Demo Org}
+      EMAIL: ${BOOTSTRAP_EMAIL:-admin@example.com}
+      PASSWORD: ${BOOTSTRAP_PASSWORD:-password123}
+      OVERRIDE_ORG_ID: ${WORKER_ORG_ID:-}
+      OUTPUT: /bootstrap/org_id
+    volumes:
+      - ./deploy/scripts:/scripts:ro
+      - bootstrap-data:/bootstrap
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [backend]
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${IMAGE_TAG:-dev}
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:-local}/api:${IMAGE_TAG:-dev}
+    restart: unless-stopped
+    # WORKER_ORG_ID from .env wins; otherwise fall back to whatever the
+    # bootstrap service resolved. `exec` matters: it makes the worker PID 1 so
+    # it receives SIGTERM directly and can drain in-flight jobs.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -z "$${WORKER_ORG_ID:-}" ] && [ -f /bootstrap/org_id ]; then
+          WORKER_ORG_ID="$$(cat /bootstrap/org_id)"
+          export WORKER_ORG_ID
+        fi
+        exec worker
+    environment:
+      <<: *api-env
+      WORKER_ORG_ID: ${WORKER_ORG_ID:-}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-10}
+      WORKER_POLL_MS: ${WORKER_POLL_MS:-500}
+      HEARTBEAT_SEC: ${HEARTBEAT_SEC:-10}
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+    volumes:
+      - bootstrap-data:/bootstrap:ro
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    # Overrides the image's HEALTHCHECK, which probes the API's HTTP port.
+    # The worker serves no HTTP, so it would be marked unhealthy forever —
+    # and `docker compose up --wait` would hang until it timed out. A process
+    # check is the meaningful signal here: the worker's real health is
+    # visible on the dashboard's Workers page, via the heartbeats it writes.
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -x worker > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # Long enough to cover the 30s in-flight drain in cmd/worker before
+    # Docker escalates to SIGKILL; the default 10s would cut jobs off midway.
+    stop_grace_period: 45s
+    networks: [backend]
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  web:
+    build:
+      context: ./ui-interface
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${IMAGE_TAG:-dev}
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:-local}/web:${IMAGE_TAG:-dev}
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: api:8080
+      API_URL: ${API_URL:-}
+      APP_VERSION: ${IMAGE_TAG:-dev}
+    ports:
+      - "${WEB_PORT:-3000}:8080"
+    depends_on:
+      api:
+        # nginx resolves the upstream hostname at startup, so the API
+        # container must exist before this one boots.
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks: [backend]
+    logging: *default-logging
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  bootstrap-data:

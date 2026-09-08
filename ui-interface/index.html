@@ -11,6 +11,9 @@
       rel="stylesheet"
     />
     <title>Job Scheduler</title>
+    <!-- Loaded before the bundle so window.__APP_CONFIG__ exists by the time
+         the app reads it. Rewritten at container start; see public/config.js. -->
+    <script src="/config.js"></script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# Local development overrides.
+#
+# Compose applies this file automatically on top of docker-compose.yml, so
+# `docker compose up` is already the dev experience. CI and servers pass
+# `-f docker-compose.yml -f docker-compose.prod.yml` to opt out of it.
+#
+# What changes here: database and cache ports are published so you can attach
+# psql/redis-cli, the API is reachable directly for curl, log volume goes up,
+# and the worker fleet shrinks to one replica so logs stay readable.
+# ---------------------------------------------------------------------------
+
+services:
+  postgres:
+    # 5433, not 5432, and bound to loopback. Many machines already run a local
+    # Postgres on the default port — publishing there would make `up` fail with
+    # a port conflict on exactly the machines most likely to be doing dev work.
+    # Connect with: psql "postgres://postgres:postgres@localhost:5433/jobscheduler"
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+
+  redis:
+    # Same reasoning as Postgres above. Connect with: redis-cli -p 6380
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+
+  api:
+    # Published so you can curl the API directly, bypassing the nginx proxy —
+    # useful for telling an API bug apart from a proxy misconfiguration.
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    environment:
+      APP_ENV: development
+      # A wide-open proxy trust list is fine here and nowhere else: it makes
+      # X-Forwarded-For testing work from any container in the bridge network.
+      TRUSTED_PROXIES: 0.0.0.0/0
+
+  worker:
+    deploy:
+      replicas: 1
+    environment:
+      WORKER_CONCURRENCY: 5
+
+  web:
+    environment:
+      APP_VERSION: dev

@@ -1,4 +1,14 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+// Precedence: runtime config injected by the container entrypoint (see
+// public/config.js) wins, so one built image serves every environment. It
+// falls back to the build-time VITE_API_URL for `npm run dev`, where no
+// entrypoint runs. An empty runtime API_URL is meaningful, not missing — it
+// means "same origin", which is how the container is deployed: nginx serves
+// the app and reverse-proxies /api to the API, so there is no CORS at all.
+const runtimeConfig = typeof window !== 'undefined' ? window.__APP_CONFIG__ : undefined
+const BASE_URL =
+  runtimeConfig && typeof runtimeConfig.API_URL === 'string'
+    ? runtimeConfig.API_URL
+    : import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
 export async function request(path, options = {}) {
   const token = localStorage.getItem('token')

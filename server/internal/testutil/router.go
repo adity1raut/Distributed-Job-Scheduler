@@ -59,6 +59,7 @@ func NewTestRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 		Redis:           rdb,
 		RateLimitPerMin: 100000,
 		AllowedOrigins:  []string{"*"},
+		Health:          handler.NewHealthHandler(pool, rdb, "test"),
 		Auth:            handler.NewAuthHandler(authSvc),
 		Project:         handler.NewProjectHandler(projectSvc),
 		Queue:           handler.NewQueueHandler(queueSvc),

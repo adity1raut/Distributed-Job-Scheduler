@@ -74,8 +74,8 @@ func registerOrg(t *testing.T, router http.Handler, orgName, email string) authR
 	t.Helper()
 	rec := doJSON(t, router, http.MethodPost, "/api/auth/register", "", map[string]string{
 		"organization_name": orgName,
-		"email":              email,
-		"password":           "password123",
+		"email":             email,
+		"password":          "password123",
 	})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register: expected 201, got %d: %s", rec.Code, rec.Body.String())

@@ -1,0 +1,23 @@
+# Everything the build does not need. Keeping the context small speeds up
+# every build and, more importantly, prevents a local .env from being copied
+# into an image layer.
+.env
+.env.*
+!.env.example
+
+*_test.go
+docs/
+*.md
+
+bin/
+api
+worker
+*.exe
+*.test
+*.out
+
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store

@@ -1,0 +1,140 @@
+# ---------------------------------------------------------------------------
+# Production overlay.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Note the explicit -f list: it also suppresses docker-compose.override.yml,
+# which compose would otherwise apply automatically and which publishes the
+# database port. Using `make deploy` gets this right for you.
+#
+# What changes here: images come from the registry instead of being built on
+# the box, every service gets CPU/memory bounds and a restart policy, the
+# bootstrap convenience service is disabled, and nothing but the web tier is
+# reachable from outside the compose network.
+# ---------------------------------------------------------------------------
+
+x-resources: &default-resources
+  # Bounds, not reservations. Without a memory limit one runaway container can
+  # take the whole host down; the OOM killer should stop the offender instead.
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: 512M
+      reservations:
+        memory: 128M
+
+services:
+  postgres:
+    # Not published. Reach it with `docker compose exec postgres psql` or an
+    # SSH tunnel — never by opening 5432 to the network.
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          memory: 512M
+    command:
+      - postgres
+      # Sized for a small single-node deployment. Raise shared_buffers to
+      # ~25% of host RAM if this database gets a dedicated machine.
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - work_mem=8MB
+      # Log anything slower than a second; the job-claim path should never
+      # appear here, and it is the first thing to check when it does.
+      - -c
+      - log_min_duration_statement=1000
+
+  redis:
+    ports: !reset []
+    <<: *default-resources
+
+  api:
+    build: !reset null
+    image: ${IMAGE_REGISTRY:?set IMAGE_REGISTRY}/${IMAGE_NAMESPACE:?set IMAGE_NAMESPACE}/api:${IMAGE_TAG:?set IMAGE_TAG}
+    ports: !reset []
+    deploy:
+      # Two replicas so a rolling restart never drops to zero. The scheduler
+      # goroutine inside each one is safe to run everywhere: a Postgres
+      # advisory lock elects a single leader per tick.
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+    # Blocks setuid/setgid escalation inside the container. Verify this works
+    # on your host first: some Docker builds reject exec outright under
+    # no_new_privs — `docker run --rm --security-opt no-new-privileges:true
+    # alpine echo ok` should print ok. See DEPLOYMENT.md → Troubleshooting.
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      APP_ENV: production
+
+  worker:
+    build: !reset null
+    image: ${IMAGE_REGISTRY:?set IMAGE_REGISTRY}/${IMAGE_NAMESPACE:?set IMAGE_NAMESPACE}/api:${IMAGE_TAG:?set IMAGE_TAG}
+    # In production the org is real and known; WORKER_ORG_ID must be set
+    # explicitly rather than invented by a bootstrap script.
+    entrypoint: !reset null
+    command: ["worker"]
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes: !reset []
+    environment:
+      WORKER_ORG_ID: ${WORKER_ORG_ID:?WORKER_ORG_ID must be set in production}
+    # Blocks setuid/setgid escalation inside the container. Verify this works
+    # on your host first: some Docker builds reject exec outright under
+    # no_new_privs — `docker run --rm --security-opt no-new-privileges:true
+    # alpine echo ok` should print ok. See DEPLOYMENT.md → Troubleshooting.
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *default-resources
+
+  # Disabled in production: it would create an org with a known default
+  # password. Scaled to zero rather than deleted so the compose file stays a
+  # single overlay of the base rather than a fork of it.
+  bootstrap:
+    deploy:
+      replicas: 0
+    entrypoint: ["/bin/sh", "-c", "echo 'bootstrap disabled in production' && exit 0"]
+
+  web:
+    build: !reset null
+    image: ${IMAGE_REGISTRY:?set IMAGE_REGISTRY}/${IMAGE_NAMESPACE:?set IMAGE_NAMESPACE}/web:${IMAGE_TAG:?set IMAGE_TAG}
+    # Bound to localhost: TLS terminates at a reverse proxy (Caddy, nginx,
+    # Traefik, or a cloud load balancer) on the host, which forwards here.
+    # Publishing 0.0.0.0 would serve the dashboard over plain HTTP.
+    ports: !override
+      - "127.0.0.1:${WEB_PORT:-3000}:8080"
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    # Blocks setuid/setgid escalation inside the container. Verify this works
+    # on your host first: some Docker builds reject exec outright under
+    # no_new_privs — `docker run --rm --security-opt no-new-privileges:true
+    # alpine echo ok` should print ok. See DEPLOYMENT.md → Troubleshooting.
+    security_opt:
+      - no-new-privileges:true

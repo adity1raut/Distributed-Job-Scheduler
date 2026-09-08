@@ -1,0 +1,234 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+# A new push to the same PR cancels the in-progress run: the older result is
+# already stale, and CI minutes are not free.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.25"
+  NODE_VERSION: "22"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend (lint, vet, test)
+    runs-on: ubuntu-latest
+
+    # Real Postgres and Redis, not mocks. The behaviour this project depends on
+    # — SELECT ... FOR UPDATE SKIP LOCKED, advisory locks, unique constraints —
+    # cannot be exercised against a fake, and the integration tests skip
+    # themselves silently when TEST_DATABASE_URL is unset, so leaving these out
+    # would produce a green run that tested almost nothing.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jobscheduler_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/jobscheduler_test?sslmode=disable
+      TEST_REDIS_ADDR: localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+
+      - name: Verify go.mod and go.sum are tidy
+        working-directory: server
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum \
+            || { echo "::error::go.mod/go.sum are not tidy — run 'go mod tidy' and commit the result"; exit 1; }
+
+      - name: Check formatting
+        working-directory: server
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt found unformatted files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        working-directory: server
+        run: go vet ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: server
+
+      - name: Apply migrations
+        run: |
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/server/migrations:/migrations:ro" \
+            migrate/migrate:v4.18.1 \
+            -path=/migrations -database="$TEST_DATABASE_URL" up
+
+      # -race catches the data races that matter most here: the worker claims
+      # jobs from several goroutines at once.
+      - name: Test
+        working-directory: server
+        run: go test ./... -race -count=1 -coverprofile=coverage.out -covermode=atomic
+
+      - name: Coverage summary
+        working-directory: server
+        run: |
+          echo "### Backend coverage" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: server/coverage.out
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend (lint, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui-interface/package-lock.json
+
+      # ci, not install: it installs exactly the locked tree and fails if
+      # package.json and the lockfile disagree.
+      - name: Install
+        working-directory: ui-interface
+        run: npm ci
+
+      - name: Lint
+        working-directory: ui-interface
+        run: npm run lint
+
+      - name: Build
+        working-directory: ui-interface
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  images:
+    name: Images (build, scan)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            context: ./server
+          - name: web
+            context: ./ui-interface
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Built and loaded locally, never pushed: CI proves the Dockerfile is
+      # valid and the image is free of known criticals. Publishing is the CD
+      # workflow's job, and only for commits that already passed here.
+      - name: Build ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: ${{ matrix.name }}:ci
+          build-args: VERSION=ci-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      - name: Scan ${{ matrix.name }} for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ matrix.name }}:ci
+          format: sarif
+          output: trivy-${{ matrix.name }}.sarif
+          severity: CRITICAL,HIGH
+          # Report rather than block. A base-image CVE with no fix available
+          # would otherwise wedge every PR on something the author cannot fix;
+          # findings still surface in the Security tab.
+          exit-code: "0"
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.name }}.sarif
+          category: trivy-${{ matrix.name }}
+
+  # ---------------------------------------------------------------------------
+  # The check that matters most: it starts the real stack the same way an
+  # operator would and proves a job submitted over HTTP is picked up and run by
+  # a worker container. Unit tests passing while the deployment is broken is
+  # exactly the failure this catches.
+  e2e:
+    name: End-to-end (compose stack)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          # A CI-only secret: the compose file refuses to start without one.
+          sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')|" .env
+
+      - name: Start the stack
+        run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: Show status
+        run: docker compose ps
+
+      - name: Smoke test
+        run: ./deploy/scripts/smoke-test.sh http://localhost:3000
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

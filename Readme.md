@@ -4,13 +4,48 @@ A production-inspired distributed job scheduling platform for reliably executing
 
 ## Contents
 
+- **[Quick Start](#quick-start)**
 - **[Tech Stack](#tech-stack)**
 - **[Architecture](#architecture)**
 - **[Project Structure](#project-structure)**
-- **[Setup](#setup)**
+- **[Manual Setup](#manual-setup-without-docker)**
 - **[Testing](#testing)**
+- **[Deployment](#deployment)**
 - **[Rolling Back Migrations](#rolling-back-migrations)**
 - **[Documentation](#documentation)**
+
+## Quick Start
+
+Docker is the only prerequisite. One command brings up the database, cache,
+migrations, API, worker fleet and dashboard:
+
+```bash
+make up
+```
+
+Then open **http://localhost:3000** and sign in with `admin@example.com` /
+`password123` (set in `.env`).
+
+To verify the whole system really works — submit a job and watch a worker
+execute it:
+
+```bash
+make smoke
+```
+
+Other common commands:
+
+```bash
+make logs                  # tail every service
+make logs SVC=worker       # tail just the workers
+make scale-workers N=5     # run five workers
+make down                  # stop, keeping data
+make clean                 # stop and delete the database
+make help                  # everything else
+```
+
+Full details, including how to deploy to a server, are in
+**[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ## Tech Stack
 
@@ -25,6 +60,8 @@ A production-inspired distributed job scheduling platform for reliably executing
 | Auth | JWT (golang-jwt) + bcrypt |
 | Cron parsing | robfig/cron |
 | Distributed locking | Postgres advisory locks (scheduler leader election) |
+| Containers | Docker + Docker Compose |
+| CI/CD | GitHub Actions, images published to GHCR |
 
 ## Architecture
 
@@ -45,10 +82,21 @@ The job lifecycle state machine lives in the
 
 ```
 server/                      # Go API + worker, see server.md
+  Dockerfile                 # builds both binaries into one image
 ui-interface/                # React dashboard (Vite), see ui_interface.md
+  Dockerfile                 # builds the SPA, serves it with nginx
+deploy/scripts/              # bootstrap and smoke-test helpers
+.github/workflows/           # CI, CD and CodeQL pipelines
+docker-compose.yml           # the stack
+docker-compose.override.yml  # local development (applied automatically)
+docker-compose.prod.yml      # production overlay
+Makefile                     # every task; run `make help`
 ```
 
-## Setup
+## Manual Setup (without Docker)
+
+`make up` handles all of this for you — these steps are for running the
+services directly on your machine instead.
 
 ### 1. Install dependencies
 
@@ -139,6 +187,16 @@ From `ui-interface/`, there's no test runner configured, only lint:
 npm run lint
 ```
 
+## Deployment
+
+The project ships as two Docker images (`api` and `web`) built and published
+by GitHub Actions. `docker-compose.prod.yml` runs them on any Linux box with
+Docker installed — no orchestrator needed.
+
+**[DEPLOYMENT.md](DEPLOYMENT.md)** covers it end to end: how the containers fit
+together, every configuration variable, deploying to a server, what each CI/CD
+workflow does, rollbacks, backups and troubleshooting.
+
 ## Rolling Back Migrations
 
 From `server/`:
@@ -158,3 +216,4 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 | **[`server/docs/design-decisions.md`](server/docs/design-decisions.md)** | Trade-offs: `SKIP LOCKED` vs. an external queue, per-queue concurrency locking, Redis rate limiting, the advisory-lock scheduler, cascade-vs-soft-delete |
 | **[`ui_interface.md`](ui_interface.md)** | Frontend feature list, structure, env vars |
 | **[`ui-interface/docs/getting-started.md`](ui-interface/docs/getting-started.md)** | Registering an org, starting a worker, creating a project/queue, all four job types, cron schedules, concurrency |
+| **[`DEPLOYMENT.md`](DEPLOYMENT.md)** | Docker images, compose stack, configuration, deploying to a server, CI/CD pipelines, rollbacks, troubleshooting |

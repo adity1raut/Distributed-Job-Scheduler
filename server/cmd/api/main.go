@@ -19,6 +19,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// buildVersion is stamped at link time by the Docker build and the release
+// pipeline (-ldflags "-X main.buildVersion=..."). It stays "dev" for a
+// plain `go run`, so a running instance always reports which artifact it is.
+var buildVersion = "dev"
+
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	_ = godotenv.Load() // optional: falls back to real env vars / defaults if .env is absent
@@ -34,7 +39,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	rdb := redis.NewClient(cfg.RedisOptions())
 	defer rdb.Close()
 
 	orgRepo := repository.NewOrganizationRepository(pool)
@@ -63,6 +68,8 @@ func main() {
 		Redis:           rdb,
 		RateLimitPerMin: cfg.RateLimitPerMin,
 		AllowedOrigins:  cfg.CORSAllowedOrigins,
+		TrustedProxies:  cfg.TrustedProxies,
+		Health:          handler.NewHealthHandler(pool, rdb, buildVersion),
 		Auth:            handler.NewAuthHandler(authSvc),
 		Project:         handler.NewProjectHandler(projectSvc),
 		Queue:           handler.NewQueueHandler(queueSvc),
@@ -84,7 +91,7 @@ func main() {
 	}
 
 	go func() {
-		slog.Info("api server starting", "port", cfg.APIPort)
+		slog.Info("api server starting", "port", cfg.APIPort, "version", buildVersion, "env", cfg.AppEnv)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server error", "error", err)
 			os.Exit(1)
@@ -94,7 +101,7 @@ func main() {
 	<-ctx.Done()
 	slog.Info("shutting down api server")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.ShutdownTimeoutSec)*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("graceful shutdown failed", "error", err)
