@@ -163,7 +163,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # Built and loaded locally, never pushed: CI proves the Dockerfile is
       # valid and the image is free of known criticals. Publishing is the CD
