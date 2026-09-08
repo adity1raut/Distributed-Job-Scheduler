@@ -58,7 +58,7 @@ jobs:
 
       - name: Derive tags
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.name }}
           # Immutable sha tag on every build is what deployments actually
