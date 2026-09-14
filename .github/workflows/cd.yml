@@ -136,7 +136,7 @@ jobs:
 
       - name: Roll out
         if: steps.target.outputs.configured == 'true'
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           IMAGE_TAG: ${{ needs.build.outputs.version }}
         with:
@@ -183,7 +183,7 @@ jobs:
       # failed deploy — put the previous tag back rather than leave it broken.
       - name: Roll back on failure
         if: failure() && steps.target.outputs.configured == 'true'
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
