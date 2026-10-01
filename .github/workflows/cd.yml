@@ -92,7 +92,7 @@ jobs:
       # Signed proof of which workflow run produced this digest, so a
       # deployed image can be traced back to its source commit.
       - name: Attest provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.name }}
           subject-digest: ${{ steps.push.outputs.digest }}
